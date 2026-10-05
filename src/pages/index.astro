@@ -1,0 +1,954 @@
+---
+import { getCollection } from 'astro:content';
+
+const partOrder = ['第一卷', '第二卷', '第三卷', '第四卷', '第五卷', '第六卷'];
+const rawEntries = await getCollection('novels');
+const entries = rawEntries
+  .filter((entry) => {
+    const id = entry.id.replace(/\.md$/, '');
+    return id.includes('/') && /第\d+章$/.test(id);
+  })
+  .sort((a, b) => {
+    const partDiff = partOrder.indexOf(a.data.part) - partOrder.indexOf(b.data.part);
+    if (partDiff !== 0) return partDiff;
+    return a.data.chapter - b.data.chapter;
+  });
+
+const chaptersByPart = partOrder.map((part) => ({
+  part,
+  chapters: entries.filter((entry) => entry.data.part === part),
+}));
+const featuredChapter = entries[0] ?? null;
+const musicDirectory = new URL('../../public/music', import.meta.url);
+const allowedAudioExtensions = /\.(mp3|wav|m4a|ogg|aac|flac|mid|midi|opus|webm)$/i;
+let musicFiles = [];
+try {
+  const fs = await import('node:fs/promises');
+  const items = await fs.readdir(musicDirectory, { withFileTypes: true });
+  musicFiles = items
+    .filter((item) => item.isFile())
+    .map((item) => item.name)
+    .filter((name) => allowedAudioExtensions.test(name))
+    .sort();
+} catch {
+  musicFiles = [];
+}
+---
+
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chandelier In the Midnight with an Idoit and a Cup — 《吊灯》</title>
+    <style>
+      :root {
+        --paper: #f5f0ea;
+        --paper-deep: #efe8df;
+        --paper-soft: rgba(255, 255, 255, 0.42);
+        --ink: #1b1b1b;
+        --ink-soft: #5b564f;
+        --line: rgba(20, 20, 20, 0.14);
+        --line-strong: rgba(20, 20, 20, 0.22);
+        --panel: rgba(255, 255, 255, 0.18);
+        --shadow: rgba(55, 38, 22, 0.12);
+        --gold: #8d7a5a;
+        --glow: rgba(126, 111, 83, 0.26);
+      }
+
+      * { box-sizing: border-box; }
+
+      html, body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at top, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0) 32%),
+          linear-gradient(180deg, #f6f1eb 0%, #efe8df 100%);
+        color: var(--ink);
+        font-family: '宋体', 'SimSun', 'Noto Serif SC', serif;
+      }
+
+      body {
+        overflow-x: hidden;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .topbar {
+        height: 62px;
+        border-bottom: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.15);
+      }
+
+      .app-shell {
+        max-width: 1440px;
+        margin: 0 auto;
+        padding: 26px 20px 60px;
+        display: grid;
+        grid-template-columns: minmax(260px, 320px) minmax(0, 980px);
+        justify-content: center;
+        gap: 28px;
+      }
+
+      .sidebar {
+        position: sticky;
+        top: 18px;
+        align-self: start;
+        background: rgba(255, 255, 255, 0.22);
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        box-shadow: 0 20px 40px rgba(26, 18, 11, 0.04);
+        padding: 18px 14px 16px;
+        backdrop-filter: blur(10px);
+      }
+
+      .brand-block {
+        padding: 8px 8px 12px;
+        margin-bottom: 16px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .brand-en {
+        font-size: 0.72rem;
+        line-height: 1.7;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+      }
+
+      .brand-cn {
+        margin-top: 8px;
+        font-size: clamp(1.7rem, 2vw, 2.2rem);
+        letter-spacing: 0.1em;
+        font-weight: 700;
+      }
+
+      .sidebar-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin: 12px 6px 14px;
+        font-size: 0.7rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+      }
+
+      .music-panel {
+        margin: 0 6px 18px;
+        padding: 12px 10px 10px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.16);
+      }
+
+      .music-header {
+        margin: 0 0 10px;
+        font-size: 0.72rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+      }
+
+      .music-select {
+        width: 100%;
+        margin-bottom: 10px;
+        padding: 9px 10px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.5);
+        color: var(--ink);
+        font: inherit;
+      }
+
+      .music-player {
+        width: 100%;
+        max-width: 100%;
+        margin-bottom: 10px;
+      }
+
+      .upload-label {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        padding: 8px 10px;
+        border: 1px dashed var(--line);
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.08);
+        cursor: pointer;
+        font-size: 0.82rem;
+        color: var(--ink-soft);
+      }
+
+      .upload-label input {
+        display: none;
+      }
+
+      .volume-tree {
+        display: grid;
+        gap: 10px;
+      }
+
+      .volume-panel {
+        border: 1px solid transparent;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.14);
+        overflow: hidden;
+        transition: border-color 0.25s ease, transform 0.25s ease, background 0.25s ease;
+      }
+
+      .volume-panel.is-open {
+        border-color: var(--line-strong);
+        background: rgba(255, 255, 255, 0.2);
+      }
+
+      .volume-toggle {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        border: none;
+        background: transparent;
+        color: var(--ink);
+        padding: 12px 12px 10px;
+        font: inherit;
+        cursor: pointer;
+        text-align: left;
+      }
+
+      .volume-name {
+        font-size: 1.02rem;
+        font-weight: 700;
+      }
+
+      .volume-count {
+        min-width: 46px;
+        text-align: center;
+        border-radius: 999px;
+        padding: 4px 8px;
+        border: 1px solid var(--line);
+        font-size: 0.72rem;
+        color: var(--ink-soft);
+        background: rgba(255, 255, 255, 0.12);
+      }
+
+      .volume-toggle::after {
+        content: '+';
+        font-size: 1.2rem;
+        color: var(--ink-soft);
+        transition: transform 0.2s ease;
+      }
+
+      .volume-panel.is-open .volume-toggle::after {
+        content: '−';
+        transform: rotate(180deg);
+      }
+
+      .chapter-list {
+        display: none;
+        gap: 7px;
+        padding: 0 8px 10px;
+      }
+
+      .volume-panel.is-open .chapter-list {
+        display: grid;
+      }
+
+      .chapter-item {
+        display: grid;
+        grid-template-columns: 74px 1fr;
+        gap: 8px;
+        border: 1px solid rgba(0, 0, 0, 0.05);
+        border-radius: 10px;
+        padding: 8px 8px;
+        background: rgba(255, 255, 255, 0.18);
+        transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+      }
+
+      .chapter-item:hover {
+        transform: translateX(3px);
+        border-color: var(--line-strong);
+        background: rgba(255, 255, 255, 0.26);
+      }
+
+      .chapter-index {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        padding: 5px 4px;
+        font-size: 0.7rem;
+        letter-spacing: 0.05em;
+        color: var(--ink-soft);
+        background: rgba(0, 0, 0, 0.02);
+      }
+
+      .chapter-title {
+        display: inline-flex;
+        align-items: center;
+        min-height: 32px;
+        font-size: 0.8rem;
+        line-height: 1.5;
+      }
+
+      .main-column {
+        display: grid;
+        grid-template-rows: auto 1fr;
+        gap: 18px;
+        min-width: 0;
+        width: 100%;
+        justify-self: start;
+      }
+
+      .intro-panel {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.2);
+        padding: 24px 28px 20px;
+        box-shadow: 0 12px 30px rgba(45, 32, 20, 0.025);
+      }
+
+      .eyebrow {
+        color: var(--ink-soft);
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        font-size: 0.72rem;
+        font-weight: 700;
+      }
+
+      h1 {
+        margin: 10px 0 12px;
+        font-size: clamp(2.6rem, 4.2vw, 4.3rem);
+        letter-spacing: 0.06em;
+        line-height: 1.08;
+      }
+
+      .subtitle {
+        max-width: 780px;
+        margin: 0;
+        color: var(--ink-soft);
+        font-size: 1.03rem;
+        line-height: 1.9;
+      }
+
+      .hero-stage {
+        position: relative;
+        width: min(100%, 980px);
+        min-height: 640px;
+        margin-left: clamp(20px, 2.6vw, 58px);
+        border: 1px solid var(--line);
+        border-radius: 28px;
+        background:
+          radial-gradient(circle at 52% 42%, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.2) 22%, rgba(245, 238, 229, 0.96) 60%, rgba(237, 228, 216, 0.92));
+        overflow: hidden;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), 0 24px 60px rgba(40, 24, 10, 0.08);
+      }
+
+      .stage-glow {
+        position: absolute;
+        inset: 12% 18% 12% 18%;
+        border-radius: 50%;
+        border: 1px solid rgba(57, 47, 38, 0.12);
+        box-shadow: 0 0 0 26px rgba(59, 52, 48, 0.02), inset 0 0 0 10px rgba(59, 52, 48, 0.025);
+      }
+
+      .tesseract-canvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+        background: transparent;
+      }
+
+      .story-panel {
+        position: absolute;
+        right: clamp(26px, 4vw, 56px);
+        bottom: clamp(26px, 4vw, 50px);
+        width: min(320px, 42vw);
+        padding: 18px 18px 16px;
+        border: 1px solid rgba(25, 22, 18, 0.12);
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.36);
+        backdrop-filter: blur(8px);
+        box-shadow: 0 18px 28px rgba(44, 32, 22, 0.08);
+        z-index: 2;
+      }
+
+      .story-panel .label {
+        display: inline-block;
+        margin-bottom: 10px;
+        font-size: 0.68rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+      }
+
+      .story-panel h2 {
+        margin: 0 0 10px;
+        font-size: clamp(1.4rem, 2vw, 2rem);
+        letter-spacing: 0.06em;
+      }
+
+      .story-panel p {
+        margin: 0 0 16px;
+        color: var(--ink-soft);
+        line-height: 1.7;
+      }
+
+      .story-panel a {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 10px 16px;
+        border-radius: 999px;
+        border: 1px solid rgba(20, 20, 20, 0.15);
+        background: rgba(17, 17, 17, 0.04);
+        font-size: 0.8rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      @media (max-width: 1100px) {
+        .app-shell {
+          grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+        }
+
+        .hero-stage {
+          min-height: 560px;
+        }
+      }
+
+      @media (max-width: 900px) {
+        .app-shell {
+          grid-template-columns: 1fr;
+        }
+
+        .sidebar {
+          position: static;
+        }
+
+        .main-column {
+          width: 100%;
+        }
+
+        .hero-stage {
+          margin-left: 0;
+          width: 100%;
+          min-height: 460px;
+        }
+
+        .story-panel {
+          width: min(320px, calc(100% - 24px));
+          right: 12px;
+          bottom: 12px;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .app-shell {
+          padding-left: 14px;
+          padding-right: 14px;
+          gap: 18px;
+        }
+
+        .sidebar,
+        .intro-panel,
+        .hero-stage {
+          border-radius: 16px;
+        }
+
+        .sidebar {
+          padding: 14px 12px;
+        }
+
+        .brand-cn {
+          font-size: 1.45rem;
+          letter-spacing: 0.06em;
+        }
+
+        .music-panel {
+          margin-left: 0;
+          margin-right: 0;
+          padding-left: 10px;
+          padding-right: 10px;
+        }
+
+        .intro-panel {
+          padding-left: 18px;
+          padding-right: 18px;
+        }
+
+        h1 {
+          font-size: clamp(2.1rem, 9vw, 3rem);
+          letter-spacing: 0.04em;
+        }
+
+        .subtitle {
+          font-size: 0.96rem;
+        }
+
+        .hero-stage {
+          min-height: 420px;
+          margin-left: 0;
+        }
+
+        .story-panel {
+          width: calc(100% - 20px);
+          right: 10px;
+          bottom: 10px;
+          padding: 14px 14px 12px;
+        }
+
+        .chapter-item {
+          grid-template-columns: 1fr;
+        }
+
+        .chapter-index {
+          justify-self: start;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="topbar" aria-label="顶部导航"></header>
+
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand-block">
+          <div class="brand-en">Chandelier In the Midnight with an Idoit and a Cup</div>
+          <div class="brand-cn">《吊灯》</div>
+        </div>
+
+        <div class="music-panel">
+          <div class="music-header">音乐播放器</div>
+          <select class="music-select" id="musicSelect" aria-label="选择播放音乐">
+            <option value="">请选择音乐</option>
+            {musicFiles.map((fileName) => (
+              <option value={`/music/${encodeURIComponent(fileName)}`}>{fileName}</option>
+            ))}
+          </select>
+          <audio class="music-player" id="musicPlayer" controls preload="none"></audio>
+          <label class="upload-label">
+            <input id="musicUpload" type="file" accept=".mp3,.wav,.m4a,.ogg,.aac,.flac,.mid,.midi,.opus,.webm,audio/*" />
+            <span>上传本地音乐</span>
+          </label>
+        </div>
+
+        <div class="sidebar-header">
+          <span>卷目目录</span>
+          <span>{chaptersByPart.length} 卷</span>
+        </div>
+
+        <div class="volume-tree">
+          {chaptersByPart.map(({ part, chapters }) => (
+            <div class={`volume-panel ${part === '第一卷' ? 'is-open' : ''}`}>
+              <button class="volume-toggle" type="button" aria-expanded={part === '第一卷' ? 'true' : 'false'}>
+                <span class="volume-name">{part}</span>
+                <span class="volume-count">{chapters.length}</span>
+              </button>
+
+              <div class="chapter-list">
+                {chapters.map((chapter) => (
+                  <a class="chapter-item" href={`/Novels/${chapter.id.replace(/\.md$/, '')}`}>
+                    <span class="chapter-index">第{chapter.data.chapter}章</span>
+                    <span class="chapter-title">{chapter.data.title}</span>
+                  </a>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </aside>
+
+      <main class="main-column">
+        <section class="intro-panel">
+          <div class="eyebrow">Novel archive · midnight edition</div>
+          <h1>《吊灯》</h1>
+          <p class="subtitle">
+            以卷为线、以章为节的小说首页。这里保留温润纸页气息，同时把故事的视线重新安排到右侧的光圈中，让屏幕中央像一盏悬在夜色里的灯，静静照亮每一段回忆。
+          </p>
+        </section>
+
+        <section class="hero-stage" aria-label="首页动画展示区">
+          <div class="stage-glow"></div>
+          <canvas class="tesseract-canvas" id="tesseractCanvas" aria-label="超立方体线框动画"></canvas>
+
+          <div class="story-panel">
+            <span class="label">当前卷目</span>
+            {featuredChapter ? (
+              <>
+                <h2>{featuredChapter.data.part}</h2>
+                <p>第{featuredChapter.data.chapter}章 · {featuredChapter.data.title}</p>
+                <a href={`/Novels/${featuredChapter.id.replace(/\.md$/, '')}`}>进入正文</a>
+              </>
+            ) : (
+              <>
+                <h2>暂无章节</h2>
+                <p>故事目录尚未整理完，先静候灯火再续篇章。</p>
+              </>
+            )}
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script>
+      const volumePanels = document.querySelectorAll('.volume-panel');
+      const musicSelect = document.getElementById('musicSelect');
+      const musicPlayer = document.getElementById('musicPlayer');
+      const musicUpload = document.getElementById('musicUpload');
+
+      if (musicSelect && musicPlayer) {
+        musicSelect.addEventListener('change', () => {
+          const selected = musicSelect.value;
+          if (!selected) {
+            musicPlayer.removeAttribute('src');
+            musicPlayer.load();
+            return;
+          }
+
+          musicPlayer.src = selected;
+          musicPlayer.load();
+          musicPlayer.play().catch(() => {});
+        });
+      }
+
+      if (musicUpload && musicPlayer && musicSelect) {
+        musicUpload.addEventListener('change', (event) => {
+          const file = event.target.files && event.target.files[0];
+          if (!file) return;
+
+          const objectUrl = URL.createObjectURL(file);
+          const option = new Option(`本地：${file.name}`, objectUrl, false, true);
+          musicSelect.appendChild(option);
+          musicPlayer.src = objectUrl;
+          musicPlayer.load();
+          musicPlayer.play().catch(() => {});
+        });
+      }
+
+      volumePanels.forEach((panel) => {
+        const toggle = panel.querySelector('.volume-toggle');
+        if (!toggle) return;
+
+        toggle.addEventListener('click', () => {
+          const shouldOpen = !panel.classList.contains('is-open');
+
+          volumePanels.forEach((item) => {
+            item.classList.remove('is-open');
+            const button = item.querySelector('.volume-toggle');
+            if (button) button.setAttribute('aria-expanded', 'false');
+          });
+
+          if (shouldOpen) {
+            panel.classList.add('is-open');
+            toggle.setAttribute('aria-expanded', 'true');
+          }
+        });
+      });
+
+      const tesseractCanvas = document.getElementById('tesseractCanvas');
+      if (tesseractCanvas) {
+        const context = tesseractCanvas.getContext('2d');
+        const heroStage = tesseractCanvas.parentElement;
+
+        const vertices = [];
+        for (let x = 0; x < 2; x += 1) {
+          for (let y = 0; y < 2; y += 1) {
+            for (let z = 0; z < 2; z += 1) {
+              for (let w = 0; w < 2; w += 1) {
+                vertices.push([
+                  x === 0 ? -1 : 1,
+                  y === 0 ? -1 : 1,
+                  z === 0 ? -1 : 1,
+                  w === 0 ? -1 : 1,
+                ]);
+              }
+            }
+          }
+        }
+
+        const edges = [];
+        for (let i = 0; i < vertices.length; i += 1) {
+          for (let j = i + 1; j < vertices.length; j += 1) {
+            let diffCount = 0;
+            for (let axis = 0; axis < 4; axis += 1) {
+              if (vertices[i][axis] !== vertices[j][axis]) diffCount += 1;
+            }
+            if (diffCount === 1) {
+              edges.push([i, j]);
+            }
+          }
+        }
+
+        function rotate3D(point, rx, ry, rz) {
+          let [x, y, z] = point;
+
+          const cosX = Math.cos(rx);
+          const sinX = Math.sin(rx);
+          const y1 = y * cosX - z * sinX;
+          const z1 = y * sinX + z * cosX;
+          y = y1;
+          z = z1;
+
+          const cosY = Math.cos(ry);
+          const sinY = Math.sin(ry);
+          const x2 = x * cosY + z * sinY;
+          const z2 = -x * sinY + z * cosY;
+          x = x2;
+          z = z2;
+
+          const cosZ = Math.cos(rz);
+          const sinZ = Math.sin(rz);
+          const x3 = x * cosZ - y * sinZ;
+          const y3 = x * sinZ + y * cosZ;
+          return [x3, y3, z];
+        }
+
+        function project3D(point, width, height, scale, center, cameraDistance = 5.2) {
+          const [x, y, z] = point;
+          const perspective = 1 / (cameraDistance - z);
+          return {
+            x: center[0] + x * scale * perspective,
+            y: center[1] + y * scale * perspective,
+            z,
+          };
+        }
+
+        function rotateIn4D(point, time) {
+          let [x, y, z, w] = point;
+
+          const rotate = (aIndex, bIndex, angle) => {
+            const cos = Math.cos(angle);
+            const sin = Math.sin(angle);
+            const a = [x, y, z, w][aIndex];
+            const b = [x, y, z, w][bIndex];
+            const next = [x, y, z, w];
+            next[aIndex] = a * cos - b * sin;
+            next[bIndex] = a * sin + b * cos;
+            [x, y, z, w] = next;
+          };
+
+          rotate(0, 1, time * 0.7);
+          rotate(0, 2, time * 0.9);
+          rotate(0, 3, time * 1.1);
+          rotate(1, 2, time * 0.6);
+          rotate(1, 3, time * 1.3);
+          rotate(2, 3, time * 0.8);
+
+          return [x, y, z, w];
+        }
+
+        function projectToScreen(point, width, height, time) {
+          const [x, y, z, w] = rotateIn4D(point, time);
+          const cameraDistance = 3.2;
+          const perspective = 1 / (cameraDistance - w);
+          const px = x * perspective;
+          const py = y * perspective;
+          const pz = z * perspective;
+
+          const yaw = time * 0.85;
+          const pitch = time * 0.65;
+          const cy = Math.cos(yaw);
+          const sy = Math.sin(yaw);
+          const cx = Math.cos(pitch);
+          const sx = Math.sin(pitch);
+
+          const x1 = px * cy - pz * sy;
+          const z1 = px * sy + pz * cy;
+          const y1 = py * cx - z1 * sx;
+          const z2 = py * sx + z1 * cx;
+
+          const scale = Math.min(width, height) * 0.27;
+          return {
+            x: x1 * scale + width * 0.5,
+            y: y1 * scale + height * 0.5,
+            z: z2,
+          };
+        }
+
+        const truncatedOctahedronVertices = [
+          [2, 1, 0], [2, -1, 0], [-2, 1, 0], [-2, -1, 0],
+          [2, 0, 1], [2, 0, -1], [-2, 0, 1], [-2, 0, -1],
+          [1, 2, 0], [1, -2, 0], [-1, 2, 0], [-1, -2, 0],
+          [1, 0, 2], [1, 0, -2], [-1, 0, 2], [-1, 0, -2],
+          [0, 2, 1], [0, 2, -1], [0, -2, 1], [0, -2, -1],
+          [0, 1, 2], [0, 1, -2], [0, -1, 2], [0, -1, -2]
+        ];
+
+        const octahedronEdges = [];
+        const expectedEdgeLength = Math.SQRT2;
+        for (let i = 0; i < truncatedOctahedronVertices.length; i += 1) {
+          for (let j = i + 1; j < truncatedOctahedronVertices.length; j += 1) {
+            const a = truncatedOctahedronVertices[i];
+            const b = truncatedOctahedronVertices[j];
+            const distance = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+            if (Math.abs(distance - expectedEdgeLength) < 0.16) {
+              octahedronEdges.push([i, j]);
+            }
+          }
+        }
+
+        const shellLatitudeLines = [];
+        const shellLongitudeLines = [];
+        const shellRadius = 9.6;
+        for (let latIndex = 0; latIndex <= 10; latIndex += 1) {
+          const lat = -Math.PI / 2 + (Math.PI * latIndex) / 10;
+          const ring = [];
+          for (let lonIndex = 0; lonIndex <= 30; lonIndex += 1) {
+            const lon = (Math.PI * 2 * lonIndex) / 30;
+            ring.push([
+              shellRadius * Math.cos(lat) * Math.cos(lon),
+              shellRadius * Math.sin(lat),
+              shellRadius * Math.cos(lat) * Math.sin(lon),
+            ]);
+          }
+          shellLatitudeLines.push(ring);
+        }
+
+        for (let lonIndex = 0; lonIndex <= 20; lonIndex += 1) {
+          const lon = (Math.PI * 2 * lonIndex) / 20;
+          const meridian = [];
+          for (let latIndex = 0; latIndex <= 12; latIndex += 1) {
+            const lat = -Math.PI / 2 + (Math.PI * latIndex) / 12;
+            meridian.push([
+              shellRadius * Math.cos(lat) * Math.cos(lon),
+              shellRadius * Math.sin(lat),
+              shellRadius * Math.cos(lat) * Math.sin(lon),
+            ]);
+          }
+          shellLongitudeLines.push(meridian);
+        }
+
+        function resizeCanvas() {
+          if (!heroStage) return;
+          const rect = heroStage.getBoundingClientRect();
+          const ratio = window.devicePixelRatio || 1;
+          tesseractCanvas.width = rect.width * ratio;
+          tesseractCanvas.height = rect.height * ratio;
+          context.setTransform(ratio, 0, 0, ratio, 0, 0);
+        }
+
+        function drawShell(width, height, time) {
+          const center = [width * 0.5, height * 0.52];
+          const scale = Math.min(width, height) * 0.29;
+          const shellRotationY = time * 0.72;
+          const shellRotationX = 0.18;
+          const shellRotationZ = 0.04;
+
+          for (const ring of shellLatitudeLines) {
+            const projected = ring.map((point) => {
+              const rotated = rotate3D(point, shellRotationX, shellRotationY, shellRotationZ);
+              return project3D(rotated, width, height, scale, center, 15.2);
+            });
+            context.beginPath();
+            for (let index = 0; index < projected.length; index += 1) {
+              const point = projected[index];
+              if (index === 0) context.moveTo(point.x, point.y);
+              else context.lineTo(point.x, point.y);
+            }
+            context.strokeStyle = 'rgba(112, 170, 220, 0.28)';
+            context.stroke();
+          }
+
+          for (const meridian of shellLongitudeLines) {
+            const projected = meridian.map((point) => {
+              const rotated = rotate3D(point, shellRotationX, shellRotationY, shellRotationZ);
+              return project3D(rotated, width, height, scale, center, 15.2);
+            });
+            context.beginPath();
+            for (let index = 0; index < projected.length; index += 1) {
+              const point = projected[index];
+              if (index === 0) context.moveTo(point.x, point.y);
+              else context.lineTo(point.x, point.y);
+            }
+            context.strokeStyle = 'rgba(112, 170, 220, 0.18)';
+            context.stroke();
+          }
+        }
+
+        function drawTruncatedOctahedron(width, height, time) {
+          const center = [width * 0.5, height * 0.52];
+          const scale = Math.min(width, height) * 0.16;
+          const rotation = time * 0.8;
+          const projected = truncatedOctahedronVertices.map((point) => {
+            const rotated = rotate3D(point, rotation, rotation * 0.7, rotation * 0.4);
+            return project3D(rotated, width, height, scale, center, 6.2);
+          });
+
+          const sortedEdges = octahedronEdges
+            .map(([start, end]) => ({
+              start: projected[start],
+              end: projected[end],
+              depth: (projected[start].z + projected[end].z) * 0.5,
+            }))
+            .sort((a, b) => b.depth - a.depth);
+
+          for (const edge of sortedEdges) {
+            context.beginPath();
+            context.moveTo(edge.start.x, edge.start.y);
+            context.lineTo(edge.end.x, edge.end.y);
+            context.strokeStyle = 'rgba(33, 30, 26, 0.82)';
+            context.stroke();
+          }
+
+          context.font = 'italic 18px Georgia, serif';
+          context.fillStyle = 'rgba(40, 34, 28, 0.9)';
+          context.fillText('i', center[0] + 36, center[1] - 20);
+        }
+
+        function render(now) {
+          if (!heroStage || !context) return;
+
+          const width = heroStage.clientWidth;
+          const height = heroStage.clientHeight;
+          const time = now * 0.001;
+
+          context.clearRect(0, 0, width, height);
+          context.lineWidth = 1.2;
+          context.lineCap = 'round';
+          context.lineJoin = 'round';
+
+          drawShell(width, height, time);
+
+          const tesseractCenter = [width * 0.5, height * 0.52];
+          const projected = vertices.map((vertex) => projectToScreen(vertex, width, height, time));
+          const sortedEdges = edges
+            .map(([startIndex, endIndex]) => {
+              const a = projected[startIndex];
+              const b = projected[endIndex];
+              return {
+                start: a,
+                end: b,
+                depth: (a.z + b.z) * 0.5,
+              };
+            })
+            .sort((edgeA, edgeB) => edgeB.depth - edgeA.depth);
+
+          for (const edge of sortedEdges) {
+            const alpha = 0.2 + ((edge.depth + 4) / 12) * 0.8;
+            context.strokeStyle = `rgba(38, 30, 22, ${Math.min(Math.max(alpha, 0.22), 0.95)})`;
+            context.beginPath();
+            context.moveTo(edge.start.x, edge.start.y);
+            context.lineTo(edge.end.x, edge.end.y);
+            context.stroke();
+          }
+
+          drawTruncatedOctahedron(width, height, time);
+
+          requestAnimationFrame(render);
+        }
+
+        resizeCanvas();
+        requestAnimationFrame(render);
+        window.addEventListener('resize', resizeCanvas);
+      }
+    </script>
+  </body>
+</html>
