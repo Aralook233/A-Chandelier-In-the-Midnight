@@ -1,0 +1,5 @@
+Contact: mailto:Aralook233@outlook.com
+Contact: https://github.com/Aralook233/A-Chandelier-In-the-Midnight/issues
+Canonical: https://loop-Chandelier.de5.net/.well-known/security.txt
+Expires: 2027-10-05T09:20:35Z
+Preferred-Languages: zh-CN,en
