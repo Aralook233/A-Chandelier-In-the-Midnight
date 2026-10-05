@@ -82,6 +82,32 @@ try {
         background: rgba(255, 255, 255, 0.15);
       }
 
+      .topbar-inner {
+        max-width: 1440px;
+        height: 100%;
+        margin: 0 auto;
+        padding: 0 20px;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+      }
+
+      .auth-button {
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.2);
+        color: var(--ink);
+        padding: 8px 14px;
+        font: inherit;
+        cursor: pointer;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .auth-button + .auth-button {
+        margin-left: 10px;
+      }
+
       .app-shell {
         max-width: 1440px;
         margin: 0 auto;
@@ -340,12 +366,14 @@ try {
         position: relative;
         width: min(100%, 980px);
         min-height: 640px;
+        aspect-ratio: 1 / 1;
         margin-left: clamp(20px, 2.6vw, 58px);
         border: 1px solid var(--line);
-        border-radius: 28px;
+        border-radius: 50%;
         background:
           radial-gradient(circle at 52% 42%, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.2) 22%, rgba(245, 238, 229, 0.96) 60%, rgba(237, 228, 216, 0.92));
         overflow: hidden;
+        isolation: isolate;
         box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), 0 24px 60px rgba(40, 24, 10, 0.08);
       }
 
@@ -354,7 +382,251 @@ try {
         inset: 12% 18% 12% 18%;
         border-radius: 50%;
         border: 1px solid rgba(57, 47, 38, 0.12);
+        z-index: 0;
+        pointer-events: none;
         box-shadow: 0 0 0 26px rgba(59, 52, 48, 0.02), inset 0 0 0 10px rgba(59, 52, 48, 0.025);
+      }
+
+      .discussion-panel {
+        width: min(100%, 980px);
+        margin-left: clamp(20px, 2.6vw, 58px);
+        padding: 22px 24px 20px;
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.18);
+        box-shadow: 0 12px 30px rgba(45, 32, 20, 0.025);
+      }
+
+      .discussion-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 18px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .discussion-header h3 {
+        margin: 0;
+        font-size: 1.12rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .discussion-badge {
+        padding: 6px 10px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.18);
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        color: var(--ink-soft);
+        text-transform: uppercase;
+      }
+
+      .discussion-form {
+        display: grid;
+        gap: 12px;
+        margin-bottom: 18px;
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.08);
+      }
+
+      .form-field {
+        display: grid;
+        gap: 8px;
+        font-size: 0.72rem;
+        color: var(--ink-soft);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .form-field input,
+      .form-field textarea {
+        width: 100%;
+        padding: 12px 14px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.42);
+        color: var(--ink);
+        font: inherit;
+        resize: vertical;
+      }
+
+      .discussion-form-actions {
+        display: flex;
+        justify-content: flex-end;
+      }
+
+      .discussion-form button,
+      .modal-submit {
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: rgba(22, 18, 14, 0.05);
+        color: var(--ink);
+        padding: 10px 18px;
+        cursor: pointer;
+        font: inherit;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .discussion-status {
+        min-height: 1.4em;
+        margin-bottom: 16px;
+        font-size: 0.8rem;
+        color: var(--ink-soft);
+      }
+
+      .discussion-list {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .discussion-item {
+        padding: 16px 16px 18px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.12);
+      }
+
+      .discussion-topic {
+        margin: 0 0 12px;
+        font-size: 1rem;
+        letter-spacing: 0.04em;
+      }
+
+      .discussion-meta {
+        margin: 0 0 10px;
+        font-size: 0.72rem;
+        color: var(--ink-soft);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .discussion-item p {
+        margin: 0;
+        line-height: 1.8;
+        color: var(--ink-soft);
+      }
+
+      .auth-modal {
+        position: fixed;
+        inset: 0;
+        background: rgba(18, 14, 10, 0.32);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+        z-index: 1000;
+      }
+
+      .auth-modal.is-open {
+        display: flex;
+      }
+
+      .auth-modal-card {
+        width: min(420px, 100%);
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        background: rgba(248, 244, 239, 0.96);
+        box-shadow: 0 20px 60px rgba(30, 20, 14, 0.12);
+        padding: 22px 20px;
+      }
+
+      .auth-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+
+      .auth-header h3 {
+        margin: 0;
+        font-size: 1.1rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .auth-close {
+        border: 1px solid var(--line);
+        background: transparent;
+        color: var(--ink);
+        border-radius: 999px;
+        width: 32px;
+        height: 32px;
+        cursor: pointer;
+      }
+
+      .auth-form {
+        display: grid;
+        gap: 12px;
+      }
+
+      .auth-form label {
+        display: grid;
+        gap: 8px;
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+      }
+
+      .auth-form input {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 12px 14px;
+        font: inherit;
+        background: rgba(255, 255, 255, 0.5);
+      }
+
+      .auth-mode-toggle {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 10px;
+      }
+
+      .auth-mode-toggle button {
+        flex: 1;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: transparent;
+        padding: 9px 10px;
+        cursor: pointer;
+        color: var(--ink);
+        font: inherit;
+      }
+
+      .auth-mode-toggle button.is-active {
+        background: rgba(18, 18, 18, 0.05);
+      }
+
+      .auth-message {
+        min-height: 1.4em;
+        font-size: 0.8rem;
+        color: var(--ink-soft);
+      }
+
+      .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 8px;
+      }
+
+      .modal-cancel {
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: transparent;
+        color: var(--ink);
+        padding: 10px 16px;
+        cursor: pointer;
       }
 
       .tesseract-canvas {
@@ -363,6 +635,7 @@ try {
         width: 100%;
         height: 100%;
         display: block;
+        z-index: 1;
         background: transparent;
       }
 
@@ -377,7 +650,7 @@ try {
         background: rgba(255, 255, 255, 0.36);
         backdrop-filter: blur(8px);
         box-shadow: 0 18px 28px rgba(44, 32, 22, 0.08);
-        z-index: 2;
+        z-index: 3;
       }
 
       .story-panel .label {
@@ -419,6 +692,11 @@ try {
           grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
         }
 
+        .hero-stage,
+        .discussion-panel {
+          margin-left: 0;
+        }
+
         .hero-stage {
           min-height: 560px;
         }
@@ -437,9 +715,13 @@ try {
           width: 100%;
         }
 
-        .hero-stage {
+        .hero-stage,
+        .discussion-panel {
           margin-left: 0;
           width: 100%;
+        }
+
+        .hero-stage {
           min-height: 460px;
         }
 
@@ -459,7 +741,8 @@ try {
 
         .sidebar,
         .intro-panel,
-        .hero-stage {
+        .hero-stage,
+        .discussion-panel {
           border-radius: 16px;
         }
 
@@ -494,15 +777,41 @@ try {
         }
 
         .hero-stage {
-          min-height: 420px;
+          min-height: 0;
+          height: min(82vw, 420px);
           margin-left: 0;
+          display: flex;
+          align-items: flex-end;
+          justify-content: center;
+          padding: 12px;
+          overflow: visible;
+        }
+
+        .stage-glow {
+          inset: 10% 14%;
         }
 
         .story-panel {
-          width: calc(100% - 20px);
-          right: 10px;
-          bottom: 10px;
+          position: relative;
+          right: auto;
+          bottom: auto;
+          width: min(100%, 280px);
+          margin: 0 auto;
           padding: 14px 14px 12px;
+          z-index: 3;
+        }
+
+        .discussion-panel {
+          padding: 18px 16px 16px;
+        }
+
+        .discussion-header {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+
+        .discussion-list {
+          grid-template-columns: 1fr;
         }
 
         .chapter-item {
@@ -516,7 +825,49 @@ try {
     </style>
   </head>
   <body>
-    <header class="topbar" aria-label="顶部导航"></header>
+    <header class="topbar" aria-label="顶部导航">
+      <div class="topbar-inner">
+        <button class="auth-button" id="openAuthButton" type="button">登录 / 注册</button>
+      </div>
+    </header>
+
+    <div class="auth-modal" id="authModal" aria-hidden="true">
+      <div class="auth-modal-card" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+        <div class="auth-header">
+          <h3 id="authTitle">账户入口</h3>
+          <button class="auth-close" id="closeAuthButton" type="button" aria-label="关闭">×</button>
+        </div>
+
+        <div class="auth-mode-toggle">
+          <button class="is-active" type="button" data-mode="login">登录</button>
+          <button type="button" data-mode="register">注册</button>
+        </div>
+
+        <form class="auth-form" id="authForm">
+          <label>
+            <span>用户名</span>
+            <input id="authUsername" name="username" type="text" placeholder="Aralook233" required />
+          </label>
+
+          <label>
+            <span>密码</span>
+            <input id="authPassword" name="password" type="password" placeholder="输入密码" required />
+          </label>
+
+          <label id="registerDisplayField" style="display: none;">
+            <span>昵称（可选）</span>
+            <input id="authDisplayName" name="displayName" type="text" maxlength="24" placeholder="可选昵称" />
+          </label>
+
+          <div class="auth-message" id="authMessage" aria-live="polite"></div>
+
+          <div class="modal-actions">
+            <button class="modal-cancel" id="cancelAuthButton" type="button">取消</button>
+            <button class="modal-submit" type="submit">登录</button>
+          </div>
+        </form>
+      </div>
+    </div>
 
     <div class="app-shell">
       <aside class="sidebar">
@@ -571,7 +922,7 @@ try {
           <div class="eyebrow">Novel archive · midnight edition</div>
           <h1>《吊灯》</h1>
           <p class="subtitle">
-            以卷为线、以章为节的小说首页。这里保留温润纸页气息，同时把故事的视线重新安排到右侧的光圈中，让屏幕中央像一盏悬在夜色里的灯，静静照亮每一段回忆。
+            一杯热茶与一盏吊灯的故事。 不，这里没有蠢货。这里<strong>自15年前</strong>就没住过人。
           </p>
         </section>
 
@@ -594,6 +945,32 @@ try {
               </>
             )}
           </div>
+        </section>
+
+        <section class="discussion-panel" aria-label="公共讨论区">
+          <div class="discussion-header">
+            <h3>公共讨论区</h3>
+            <span class="discussion-badge">站内公开</span>
+          </div>
+
+          <form class="discussion-form" id="discussionForm">
+            <label class="form-field">
+              <span>昵称</span>
+              <input id="discussionName" name="name" type="text" maxlength="24" placeholder="匿名读者" required />
+            </label>
+
+            <label class="form-field">
+              <span>留言</span>
+              <textarea id="discussionMessage" name="message" rows="3" maxlength="220" placeholder="写下你对这座灯影与故事的想法…" required></textarea>
+            </label>
+
+            <div class="discussion-form-actions">
+              <button type="submit">发表留言</button>
+            </div>
+          </form>
+
+          <div class="discussion-status" id="discussionStatus" aria-live="polite"></div>
+          <div class="discussion-list" id="discussionList"></div>
         </section>
       </main>
     </div>
@@ -652,6 +1029,247 @@ try {
           }
         });
       });
+
+      const authOpenButton = document.getElementById('openAuthButton');
+      const authModal = document.getElementById('authModal');
+      const closeAuthButton = document.getElementById('closeAuthButton');
+      const cancelAuthButton = document.getElementById('cancelAuthButton');
+      const authForm = document.getElementById('authForm');
+      const authUsername = document.getElementById('authUsername');
+      const authPassword = document.getElementById('authPassword');
+      const authDisplayName = document.getElementById('authDisplayName');
+      const authMessage = document.getElementById('authMessage');
+      const registerDisplayField = document.getElementById('registerDisplayField');
+      const authModeButtons = document.querySelectorAll('[data-mode]');
+      const authSubmitButton = document.querySelector('.modal-submit');
+      let authMode = 'login';
+
+      function syncAuthMode() {
+        if (!authModeButtons.length || !registerDisplayField || !authSubmitButton) return;
+
+        authModeButtons.forEach((button) => {
+          const active = button.dataset.mode === authMode;
+          button.classList.toggle('is-active', active);
+        });
+
+        const isRegister = authMode === 'register';
+        registerDisplayField.style.display = isRegister ? 'grid' : 'none';
+        authSubmitButton.textContent = isRegister ? '注册' : '登录';
+      }
+
+      function openAuthModal() {
+        if (!authModal) return;
+        authModal.classList.add('is-open');
+        authModal.setAttribute('aria-hidden', 'false');
+      }
+
+      function closeAuthModal() {
+        if (!authModal) return;
+        authModal.classList.remove('is-open');
+        authModal.setAttribute('aria-hidden', 'true');
+      }
+
+      authOpenButton?.addEventListener('click', openAuthModal);
+      closeAuthButton?.addEventListener('click', closeAuthModal);
+      cancelAuthButton?.addEventListener('click', closeAuthModal);
+      authModal?.addEventListener('click', (event) => {
+        if (event.target === authModal) closeAuthModal();
+      });
+
+      authModeButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+          authMode = button.dataset.mode || 'login';
+          syncAuthMode();
+          if (authMessage) authMessage.textContent = '';
+        });
+      });
+
+      syncAuthMode();
+
+      async function submitAuth(event) {
+        event.preventDefault();
+        if (!authForm || !authUsername || !authPassword) return;
+
+        const username = authUsername.value.trim();
+        const password = authPassword.value.trim();
+
+        if (!username || !password) {
+          if (authMessage) authMessage.textContent = '用户名和密码不能为空。';
+          return;
+        }
+
+        const payload = {
+          action: authMode,
+          username,
+          password,
+          displayName: authDisplayName ? authDisplayName.value.trim() : '',
+        };
+
+        try {
+          const response = await fetch('/api/auth', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+
+          const data = await response.json().catch(() => ({}));
+
+          if (!response.ok) {
+            if (authMessage) authMessage.textContent = data.error || '认证失败。';
+            return;
+          }
+
+          if (authMessage) {
+            authMessage.textContent = authMode === 'register' ? '注册成功，已自动登录。' : '登录成功。';
+          }
+
+          authForm.reset();
+          closeAuthModal();
+        } catch {
+          if (authMessage) authMessage.textContent = '当前无法连接到认证服务，请稍后再试。';
+        }
+      }
+
+      authForm?.addEventListener('submit', submitAuth);
+
+      const discussionForm = document.getElementById('discussionForm');
+      const discussionName = document.getElementById('discussionName');
+      const discussionMessage = document.getElementById('discussionMessage');
+      const discussionList = document.getElementById('discussionList');
+      const discussionStatus = document.getElementById('discussionStatus');
+      const discussionStorageKey = 'chandelier-public-discussion-v1';
+
+      const discussionSeed = [
+        {
+          id: 'seed-1',
+          name: '站内公开',
+          message: '这里是公开留言区，欢迎留下对灯影与卷章的看法。',
+          createdAt: new Date().toISOString(),
+        },
+        {
+          id: 'seed-2',
+          name: '读者',
+          message: '四周的光线像灯芯在纸页上慢慢起伏，故事也顺着这股温度往前走。',
+          createdAt: new Date(Date.now() - 3600000).toISOString(),
+        }
+      ];
+
+      function readLocalDiscussion() {
+        try {
+          const raw = localStorage.getItem(discussionStorageKey);
+          if (!raw) return discussionSeed;
+          const parsed = JSON.parse(raw);
+          if (!Array.isArray(parsed) || parsed.length === 0) return discussionSeed;
+          return parsed;
+        } catch {
+          return discussionSeed;
+        }
+      }
+
+      function writeLocalDiscussion(items) {
+        try {
+          localStorage.setItem(discussionStorageKey, JSON.stringify(items));
+        } catch {
+          // ignore storage errors on restricted browsers
+        }
+      }
+
+      function renderDiscussion(items) {
+        if (!discussionList) return;
+
+        const comments = Array.isArray(items) && items.length > 0 ? items : discussionSeed;
+        discussionList.innerHTML = comments
+          .slice(0, 9)
+          .map((item) => {
+            const time = item.createdAt ? new Date(item.createdAt).toLocaleString('zh-CN', {
+              month: 'numeric',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            }) : '刚刚';
+
+            return `
+              <article class="discussion-item">
+                <p class="discussion-meta">${time} · ${item.name || '匿名读者'}</p>
+                <h4 class="discussion-topic">${(item.message || '').replace(/[<>]/g, '').slice(0, 80)}</h4>
+                <p>${(item.message || '').replace(/[<>]/g, '').slice(0, 180)}</p>
+              </article>
+            `;
+          })
+          .join('');
+      }
+
+      async function loadDiscussion() {
+        if (!discussionList) return;
+
+        try {
+          const response = await fetch('/api/discussions', { cache: 'no-store' });
+          if (response.ok) {
+            const payload = await response.json();
+            if (Array.isArray(payload.comments) && payload.comments.length > 0) {
+              renderDiscussion(payload.comments);
+              writeLocalDiscussion(payload.comments);
+              return;
+            }
+          }
+        } catch {
+          // fallback silently to local storage when the API is unavailable
+        }
+
+        renderDiscussion(readLocalDiscussion());
+      }
+
+      async function submitDiscussion(event) {
+        event.preventDefault();
+        if (!discussionForm || !discussionName || !discussionMessage || !discussionStatus) return;
+
+        const name = discussionName.value.trim() || '匿名读者';
+        const message = discussionMessage.value.trim();
+
+        if (!message) {
+          discussionStatus.textContent = '留言内容不能为空。';
+          return;
+        }
+
+        const payload = {
+          name,
+          message,
+          createdAt: new Date().toISOString(),
+        };
+
+        try {
+          const response = await fetch('/api/discussions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+
+          const data = await response.json().catch(() => ({}));
+
+          const localItems = [payload, ...readLocalDiscussion()];
+          writeLocalDiscussion(localItems.slice(0, 12));
+          renderDiscussion(localItems.slice(0, 12));
+
+          if (response.ok) {
+            discussionStatus.textContent = data.warning ? '已提交，当前为本地回退模式。' : '留言已发布。';
+          } else {
+            discussionStatus.textContent = '提交失败，已保存在本地回退区。';
+          }
+        } catch {
+          const localItems = [payload, ...readLocalDiscussion()];
+          writeLocalDiscussion(localItems.slice(0, 12));
+          renderDiscussion(localItems.slice(0, 12));
+          discussionStatus.textContent = '留言已保存到本地，页面刷新后仍可看到。';
+        }
+
+        discussionForm.reset();
+      }
+
+      if (discussionForm) {
+        discussionForm.addEventListener('submit', submitDiscussion);
+      }
+
+      loadDiscussion();
 
       const tesseractCanvas = document.getElementById('tesseractCanvas');
       if (tesseractCanvas) {
