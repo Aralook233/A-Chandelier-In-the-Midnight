@@ -1,0 +1,77 @@
+/*
+ * 正文排版层（章节页）。交付方式和 homepage-motion.css 一样：一个新文件 + 一行 import，
+ * 页面本体不动 —— [...slug].astro 正被并行会话改着。
+ *
+ * 按需求逐条对号：
+ *   1 行高 1.7–1.9：正文取 1.8（页面原来 2.15，太松）。实测 16.96px × 1.8 = 30.53px。
+ *   2 最大行宽 25–35 字：正文栏 34rem ÷ 1.06rem 字号 = 32 格一行，首行缩进两字后 30 字；
+ *     实测每行 32 个字符（含标点），在区间内。卡片一起收到 38rem（34 + 左右各 2rem 内边距），
+ *     否则 32 字的正文居中在 980px 的卡片里，右侧会甩出一大片空白。
+ *   3 中西文混排间距：text-autospace 由引擎在汉字与拉丁字母／数字之间补空，
+ *     不改源文本，也不留下可被复制、被搜索到的空格字符。
+ *     实测（Chromium 150）：'打开Radio天线拧到432MHz的刻度' 261.97px → 270.44px，
+ *     四个边界共 +8.47px，即每个 0.125em。注意这份空是折进相邻字宽里的，
+ *     逐字 Range 量"字间空隙"量不出来，只能比整串宽度。
+ *     none 这一档本机不接受（CSS.supports 否），所以 initial 就是 no-autospace，
+ *     页面默认不加，这一层显式写 normal 才生效。
+ *   4 标点占整格，但引号括号前后不留多余空隙：
+ *     ，。、；：！？ 一律保持 1em（实测 中，中 与 中。中 都正好 3em），这是需求里的"占全角"。
+ *     「」（）这类成对标点的空半边（墨迹实测在 0.72em 一侧）交给 remark-cjk-punct-hug.mjs
+ *     包一层 span，用负外边距收掉 0.6em —— 只收夹在正文中间的那些；
+ *     段首、以及跟在 ，。： 后面的那些浏览器本来就会做相邻压缩（实测 说：「你好。」走
+ *     四个标点合计 0.895em），再收一次就重叠了。
+ *     这一层里不要写 font-feature-settings：浏览器对标点的自动压缩走的就是一套内置规则，
+ *     显式声明 "palt" 反而让每个标点退回整格（实测「完全可行」 1.5em → 2.0em）。
+ *   5 行首那半格空白交给 text-spacing-trim: trim-start（实测 96px → 88px）。
+ *     标点悬挂：Chromium 至今没实现 hanging-punctuation（连 CSS.supports 都否），
+ *     所以整段用 @supports 放行，只让 Safari 吃；这里只取 allow-end ——
+ *     加上 first/last 会和上面的负外边距同向叠加，换行处的引号会多突出一截。
+ *     行首禁则由页面已有的 line-break: strict 兜住，Firefox 上两者都不塌。
+ *
+ * 选择器加权说明：页面作用域样式把 .article-panel 编译成 .article-panel[data-astro-cid-*]，
+ * specificity (0,2,0)，比裸类名高一级。max-width / line-height 这类页面没写过，直接生效；
+ * 要覆盖它写过的 justify-self，就用 :is(.article-panel) 把类补到同级再赢一层元素。
+ */
+
+:root {
+  --story-leading: 1.8;
+  --story-measure: 34rem;
+  --story-panel: 38rem;
+
+  /* 引号／括号空半边约 0.7em，收到只剩一点正常字距 */
+  --story-hug: 0.6em;
+}
+
+main.article-panel:is(.article-panel) {
+  max-width: var(--story-panel);
+  justify-self: center;
+}
+
+main.article-panel article {
+  max-width: var(--story-measure);
+  margin-inline: auto;
+  line-height: var(--story-leading);
+  text-autospace: normal;
+  text-wrap: pretty;
+}
+
+main.article-panel :where(.punct-hug--open) {
+  margin-inline-start: calc(var(--story-hug) * -1);
+}
+
+main.article-panel :where(.punct-hug--close) {
+  margin-inline-end: calc(var(--story-hug) * -1);
+}
+
+@supports (text-spacing-trim: trim-start) {
+  main.article-panel article {
+    text-spacing-trim: trim-start;
+  }
+}
+
+@supports (hanging-punctuation: first) {
+  main.article-panel article {
+    /* 行尾标点出格悬挂；行首一侧与上面的负外边距同向，Safari 上两者相加不会重叠 */
+    hanging-punctuation: allow-end;
+  }
+}

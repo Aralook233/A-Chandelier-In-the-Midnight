@@ -1,0 +1,31 @@
+/*
+ * 管理员删除按钮：构成主义口径——直角、无阴影、无圆角，颜色复用动效层唯一的红
+ * （--motion-accent 已按深浅主题分档）。单独成文件是为了不碰 index.astro 的
+ * 页面样式块。
+ */
+
+.moderation-delete {
+  margin-inline-start: 0.5em;
+  padding: 0 0.45em;
+  font: inherit;
+  font-size: 0.78em;
+  line-height: 1.7;
+  color: var(--motion-accent, #a8271b);
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 0;
+  box-shadow: none;
+  cursor: pointer;
+  transition: none;
+}
+
+.moderation-delete:hover:not(:disabled),
+.moderation-delete:focus-visible:not(:disabled) {
+  color: var(--paper, #f5f0ea);
+  background: var(--motion-accent, #a8271b);
+}
+
+.moderation-delete:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

@@ -8,11 +8,18 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
+    "check:csp": "node tools/csp-guard.mjs",
+    "verify": "astro build && node tools/csp-guard.mjs && node tests/functions.security.test.mjs",
+    "icons": "node tools/make-icons.mjs",
     "preview": "astro preview",
     "astro": "astro"
   },
   "dependencies": {
+    "@astrojs/markdown-remark": "^7.3.2",
     "astro": "^7.3.5"
+  },
+  "overrides": {
+    "http-cache-semantics": "^4.3.0"
   },
   "allowScripts": {
     "esbuild": true

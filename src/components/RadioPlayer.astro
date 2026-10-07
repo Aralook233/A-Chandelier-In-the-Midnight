@@ -1,0 +1,1028 @@
+---
+interface Props {
+  musicFiles: string[];
+  caption?: string;
+}
+
+const { musicFiles, caption = '电台' } = Astro.props;
+---
+
+<div class="radio-panel">
+  <div class="radio-caption">
+    <span>{caption}</span>
+    <span class="radio-lamps">
+      <i class="lamp" data-lamp="power" aria-hidden="true"></i>
+      <i class="lamp" data-lamp="signal" aria-hidden="true"></i>
+    </span>
+  </div>
+
+  <div class="radio-shell" data-shell>
+    <div class="radio-face">
+      <div class="radio-brand">
+        <span class="radio-mark">吊灯广播电台</span>
+        <span class="radio-brand-meta">
+          <span class="radio-onair" aria-hidden="true">ON AIR</span>
+          <span class="radio-model">短波 · 6.420 MHz</span>
+        </span>
+      </div>
+
+      <div class="radio-dial">
+        <div class="radio-ticks" aria-hidden="true"></div>
+        <div class="radio-band" aria-hidden="true"><span>88</span><span>92</span><span>96</span><span>100</span><span>104</span><span>108</span></div>
+        <div class="radio-needle" data-needle aria-hidden="true"></div>
+        <input class="radio-tune" data-tune type="range" min="0" max="1000" value="0" step="1" aria-label="播放进度" />
+      </div>
+
+      <div class="radio-window">
+        <span class="reel" aria-hidden="true"></span>
+        <span class="radio-meta">
+          <span class="radio-track" data-track>未接入节目</span>
+          <span class="radio-time" data-time>--:-- / --:--</span>
+        </span>
+        <span class="reel" aria-hidden="true"></span>
+      </div>
+
+      <div class="radio-scope">
+        <canvas class="radio-canvas" data-scope width="640" height="130"></canvas>
+        <span class="radio-scope-glow" aria-hidden="true"></span>
+        <button class="radio-scope-toggle" data-scope-toggle type="button" aria-pressed="false">波形</button>
+      </div>
+    </div>
+
+    <div class="radio-chassis">
+      <div class="radio-grille" aria-hidden="true"></div>
+      <span class="radio-knob" aria-hidden="true">
+        <i class="knob-dial" data-knob></i>
+        <em>调谐</em>
+      </span>
+    </div>
+
+    <div class="radio-controls">
+      <div class="radio-transport">
+        <button class="radio-btn" data-eject type="button" aria-label="切断当前节目">⏏</button>
+        <button class="radio-btn" data-play type="button" aria-pressed="false" aria-label="播放">▶</button>
+        <button class="radio-btn" data-stop type="button" aria-label="停止">■</button>
+      </div>
+
+      <label class="radio-fader">
+        <span class="radio-fader-name">VOL</span>
+        <input data-volume type="range" min="0" max="100" value="80" step="1" aria-label="音量" />
+      </label>
+
+      <label class="radio-fader">
+        <span class="radio-fader-name">TONE</span>
+        <input data-tone type="range" min="-12" max="12" value="0" step="1" aria-label="高音调节" />
+      </label>
+    </div>
+
+    <div class="radio-deck">
+      <label class="radio-field">
+        <span class="radio-field-name">频道</span>
+        <select class="radio-select" id="musicSelect" aria-label="选择播放频道">
+          <option value="">请选择频道</option>
+          {musicFiles.map((fileName) => (
+            <option value={`/music/${encodeURIComponent(fileName)}`}>{fileName}</option>
+          ))}
+        </select>
+      </label>
+      <label class="radio-upload">
+        <input id="musicUpload" type="file" accept=".mp3,.wav,.m4a,.ogg,.aac,.flac,.mid,.midi,.opus,.webm,audio/*" />
+        <span>接入本机节目</span>
+      </label>
+    </div>
+
+    <audio id="musicPlayer" class="radio-audio" preload="none"></audio>
+  </div>
+</div>
+
+<style>
+  /*
+   * 材质：发射台机柜，不是家用收音机。
+   * 和 homepage-motion.css 同一套语言 —— 平涂实色、1px 发丝线、直角、
+   * 阴影只给 3px 实色偏移（套印没对准），不做高斯模糊，不做金属/木纹渐变。
+   * 红色统一取 --motion-accent（动效层没引入时退回本文件的实色值）。
+   */
+  .radio-panel {
+    --deck: #14120f;
+    --deck-sunk: #0c0b09;
+    --print: rgba(238, 232, 218, 0.94);
+    --print-dim: rgba(238, 232, 218, 0.5);
+    --rule: rgba(238, 232, 218, 0.2);
+    --onair: var(--motion-accent, #a8271b);
+
+    margin: 0 0 18px;
+  }
+
+  /* 动效层不在场的页面（章节、404）按同一套主题机制自己补一档深红 */
+  :root[data-theme='dark'] .radio-panel {
+    --motion-accent: #d2503a;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .radio-panel {
+      --motion-accent: #d2503a;
+    }
+  }
+
+  .radio-caption {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 0 2px 8px;
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+
+  .radio-caption > span:first-child::before {
+    content: '';
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    margin-right: 8px;
+    vertical-align: -1px;
+    background: var(--onair);
+  }
+
+  .radio-lamps {
+    display: inline-flex;
+    gap: 6px;
+  }
+
+  /* 指示灯不做发光：灭 = 空心发丝框，亮 = 实色方块 */
+  .lamp {
+    width: 9px;
+    height: 9px;
+    border: 1px solid var(--print-dim);
+    background: transparent;
+  }
+
+  .lamp.is-on[data-lamp='power'] {
+    border-color: var(--print);
+    background: var(--print);
+  }
+
+  .lamp.is-on[data-lamp='signal'] {
+    border-color: var(--onair);
+    background: var(--onair);
+  }
+
+  .radio-shell {
+    padding: 10px;
+    border: 1px solid var(--rule);
+    background: var(--deck);
+    box-shadow: 4px 4px 0 rgba(20, 14, 8, 0.22);
+  }
+
+  .radio-face {
+    padding: 9px 9px 8px;
+    border: 1px solid var(--rule);
+    background: var(--deck);
+    color: var(--print);
+  }
+
+  .radio-brand {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 7px;
+  }
+
+  .radio-brand-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .radio-mark {
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+  }
+
+  .radio-model {
+    font-size: 0.6rem;
+    letter-spacing: 0.18em;
+    color: var(--print-dim);
+    white-space: nowrap;
+  }
+
+  /* 播出牌：不播放时只是空心字，播出时整块翻红，不做渐亮 */
+  .radio-onair {
+    padding: 2px 6px;
+    border: 1px solid var(--print-dim);
+    color: var(--print-dim);
+    font-size: 0.56rem;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+  }
+
+  .radio-shell.is-playing .radio-onair {
+    border-color: var(--onair);
+    background: var(--onair);
+    color: #fff;
+  }
+
+  .radio-dial {
+    position: relative;
+    height: 46px;
+    overflow: hidden;
+    border: 1px solid var(--rule);
+    background: var(--deck-sunk);
+  }
+
+  /* 刻度：两道密度的硬发丝线，不做模糊 */
+  .radio-ticks {
+    position: absolute;
+    inset: 0;
+    background:
+      repeating-linear-gradient(90deg, rgba(238, 232, 218, 0.32) 0 1px, transparent 1px 9px) bottom / 100% 12px no-repeat,
+      repeating-linear-gradient(90deg, rgba(238, 232, 218, 0.7) 0 1.5px, transparent 1.5px 36px) bottom / 100% 20px no-repeat;
+  }
+
+  .radio-band {
+    position: absolute;
+    left: 6px;
+    right: 6px;
+    top: 4px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.56rem;
+    letter-spacing: 0.06em;
+    color: var(--print-dim);
+  }
+
+  .radio-needle {
+    position: absolute;
+    top: 2px;
+    bottom: 2px;
+    left: 0;
+    width: 2px;
+    background: var(--onair);
+    transition: left 0.16s linear;
+  }
+
+  .radio-tune {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 20px;
+    margin: 0;
+    appearance: none;
+    background: transparent;
+    cursor: ew-resize;
+  }
+
+  .radio-tune::-webkit-slider-runnable-track {
+    height: 20px;
+    background: transparent;
+  }
+
+  .radio-tune::-webkit-slider-thumb {
+    appearance: none;
+    width: 13px;
+    height: 20px;
+    border: 1px solid var(--print);
+    background: var(--deck);
+  }
+
+  .radio-tune::-moz-range-track {
+    height: 20px;
+    background: transparent;
+  }
+
+  .radio-tune::-moz-range-thumb {
+    width: 13px;
+    height: 20px;
+    border: 1px solid var(--print);
+    border-radius: 0;
+    background: var(--deck);
+  }
+
+  .radio-tune:focus-visible {
+    outline: 2px solid var(--onair);
+    outline-offset: -2px;
+  }
+
+  .radio-window {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 6px 8px;
+    border: 1px solid var(--rule);
+    background: var(--deck-sunk);
+  }
+
+  /* 两边的磁带盘换成发射塔：桅杆 + 一面弧波，播出时按格扩张而不是匀转 */
+  .reel {
+    position: relative;
+    flex: none;
+    width: 26px;
+    height: 26px;
+    border: 1px solid var(--rule);
+    background: var(--deck);
+  }
+
+  .reel::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: 4px;
+    width: 2px;
+    height: 11px;
+    margin-left: -1px;
+    background: var(--print-dim);
+  }
+
+  .reel::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 7px;
+    width: 14px;
+    height: 14px;
+    margin-left: -7px;
+    border: 2px solid transparent;
+    border-top-color: var(--onair);
+    border-radius: 50%;
+    transform-origin: center;
+  }
+
+  .radio-shell.is-playing .reel::after {
+    animation: wave-step 900ms steps(3, end) infinite;
+  }
+
+  @keyframes wave-step {
+    from {
+      scale: 0.5;
+      opacity: 1;
+    }
+    to {
+      scale: 1.05;
+      opacity: 0.35;
+    }
+  }
+
+  .radio-meta {
+    flex: 1;
+    min-width: 0;
+    display: grid;
+    gap: 2px;
+    text-align: center;
+  }
+
+  .radio-track {
+    overflow: hidden;
+    color: var(--print);
+    font-size: 0.74rem;
+    letter-spacing: 0.06em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .radio-time {
+    font-size: 0.62rem;
+    letter-spacing: 0.14em;
+    color: var(--print-dim);
+  }
+
+  .radio-scope {
+    position: relative;
+    margin-top: 8px;
+    overflow: hidden;
+    border: 1px solid var(--rule);
+    background: var(--deck-sunk);
+  }
+
+  .radio-canvas {
+    display: block;
+    width: 100%;
+    height: 76px;
+  }
+
+  /* 原来的 CRT 辉光换成硬扫描线，实色条纹不做渐变 */
+  .radio-scope-glow {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(180deg, rgba(238, 232, 218, 0.05) 0 1px, transparent 1px 4px);
+  }
+
+  .radio-scope-toggle {
+    position: absolute;
+    right: 6px;
+    bottom: 6px;
+    padding: 2px 8px;
+    border: 1px solid var(--print-dim);
+    background: var(--deck);
+    color: var(--print);
+    font: inherit;
+    font-size: 0.6rem;
+    letter-spacing: 0.12em;
+    cursor: pointer;
+  }
+
+  .radio-scope-toggle[aria-pressed='true'] {
+    border-color: var(--onair);
+    background: var(--onair);
+    color: #fff;
+  }
+
+  .radio-scope-toggle:focus-visible {
+    outline: 2px solid var(--onair);
+    outline-offset: 2px;
+  }
+
+  .radio-chassis {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 74px;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+  }
+
+  /* 音箱网罩换成机柜散热栅格：等距硬条 */
+  .radio-grille {
+    height: 62px;
+    border: 1px solid var(--rule);
+    background: repeating-linear-gradient(180deg, rgba(238, 232, 218, 0.14) 0 2px, transparent 2px 9px), var(--deck-sunk);
+  }
+
+  .radio-knob {
+    display: grid;
+    justify-items: center;
+    gap: 3px;
+  }
+
+  .radio-knob em {
+    font-size: 0.54rem;
+    font-style: normal;
+    letter-spacing: 0.16em;
+    color: var(--print-dim);
+  }
+
+  /* 旋钮：一块平涂黑盘 + 一根指示线，脚本继续用 rotate 驱动 */
+  .knob-dial {
+    position: relative;
+    display: block;
+    width: 44px;
+    height: 44px;
+    border: 1px solid var(--print-dim);
+    border-radius: 50%;
+    background: var(--deck-sunk);
+  }
+
+  .knob-dial::after {
+    content: '';
+    position: absolute;
+    top: 4px;
+    left: 50%;
+    width: 2px;
+    height: 13px;
+    margin-left: -1px;
+    background: var(--onair);
+  }
+
+  .radio-controls {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .radio-transport {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .radio-btn {
+    flex: 1;
+    max-width: 86px;
+    min-height: 34px;
+    border: 1px solid var(--print-dim);
+    background: var(--deck);
+    color: var(--print);
+    font: inherit;
+    font-size: 0.9rem;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: 3px 3px 0 rgba(238, 232, 218, 0.16);
+    transition: translate 0.16s linear, box-shadow 0.16s linear, background-color 0.16s linear;
+  }
+
+  .radio-btn:hover {
+    border-color: var(--onair);
+    box-shadow: 3px 3px 0 var(--onair);
+  }
+
+  .radio-btn:active {
+    translate: 3px 3px;
+    box-shadow: none;
+  }
+
+  .radio-btn[aria-pressed='true'] {
+    translate: 3px 3px;
+    border-color: var(--onair);
+    background: var(--onair);
+    color: #fff;
+    box-shadow: none;
+  }
+
+  .radio-btn:focus-visible {
+    outline: 2px solid var(--onair);
+    outline-offset: 2px;
+  }
+
+  .radio-fader {
+    display: grid;
+    gap: 3px;
+    padding: 6px 8px 4px;
+    border: 1px solid var(--rule);
+    background: var(--deck-sunk);
+  }
+
+  .radio-fader-name {
+    font-size: 0.54rem;
+    letter-spacing: 0.18em;
+    color: var(--print-dim);
+  }
+
+  .radio-fader input {
+    width: 100%;
+    height: 16px;
+    margin: 0;
+    appearance: none;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  .radio-fader input::-webkit-slider-runnable-track {
+    height: 2px;
+    background: var(--print-dim);
+  }
+
+  .radio-fader input::-webkit-slider-thumb {
+    appearance: none;
+    width: 12px;
+    height: 16px;
+    margin-top: -7px;
+    border: 1px solid var(--print);
+    background: var(--deck);
+  }
+
+  .radio-fader input::-moz-range-track {
+    height: 2px;
+    background: var(--print-dim);
+  }
+
+  .radio-fader input::-moz-range-thumb {
+    width: 12px;
+    height: 16px;
+    border: 1px solid var(--print);
+    border-radius: 0;
+    background: var(--deck);
+  }
+
+  .radio-fader input:focus-visible {
+    outline: 2px solid var(--onair);
+    outline-offset: 3px;
+  }
+
+  .radio-deck {
+    display: grid;
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .radio-field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .radio-field-name {
+    flex: none;
+    font-size: 0.6rem;
+    letter-spacing: 0.16em;
+    color: var(--print-dim);
+  }
+
+  .radio-select,
+  .radio-upload span {
+    min-width: 0;
+    padding: 8px 10px;
+    border: 1px solid var(--print-dim);
+    background: var(--deck-sunk);
+    color: var(--print);
+    font: inherit;
+    font-size: 0.8rem;
+  }
+
+  .radio-select {
+    flex: 1;
+    width: 100%;
+  }
+
+  .radio-select option {
+    background: var(--deck);
+    color: var(--print);
+  }
+
+  .radio-upload {
+    display: block;
+    cursor: pointer;
+  }
+
+  .radio-upload input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+  }
+
+  .radio-upload span {
+    display: block;
+    text-align: center;
+    box-shadow: 3px 3px 0 rgba(238, 232, 218, 0.16);
+    transition: translate 0.16s linear, box-shadow 0.16s linear, border-color 0.16s linear;
+  }
+
+  .radio-upload:hover span {
+    border-color: var(--onair);
+    box-shadow: 3px 3px 0 var(--onair);
+  }
+
+  .radio-upload:active span {
+    translate: 3px 3px;
+    box-shadow: none;
+  }
+
+  .radio-upload input:focus-visible + span {
+    outline: 2px solid var(--onair);
+    outline-offset: 2px;
+  }
+
+  .radio-audio {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  @media (max-width: 1024px) {
+    .radio-btn {
+      min-height: 44px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .radio-needle,
+    .radio-btn,
+    .radio-upload span {
+      transition: none;
+    }
+
+    .radio-shell.is-playing .reel::after {
+      animation: none;
+      scale: 1;
+      opacity: 1;
+    }
+  }
+</style>
+
+<script>
+  const shell = document.querySelector<HTMLElement>('[data-shell]');
+  const audio = document.getElementById('musicPlayer') as HTMLAudioElement | null;
+  const select = document.getElementById('musicSelect') as HTMLSelectElement | null;
+  const upload = document.getElementById('musicUpload') as HTMLInputElement | null;
+
+  if (shell && audio) {
+    const pick = (name: string) => shell.querySelector(`[data-${name}]`) as any;
+
+    const needle = pick('needle') as HTMLElement | null;
+    const tune = pick('tune') as HTMLInputElement | null;
+    const trackLabel = pick('track') as HTMLElement | null;
+    const timeLabel = pick('time') as HTMLElement | null;
+    const scope = pick('scope') as HTMLCanvasElement | null;
+    const scopeToggle = pick('scope-toggle') as HTMLButtonElement | null;
+    const knob = pick('knob') as HTMLElement | null;
+    const playBtn = pick('play') as HTMLButtonElement | null;
+    const stopBtn = pick('stop') as HTMLButtonElement | null;
+    const ejectBtn = pick('eject') as HTMLButtonElement | null;
+    const volumeInput = pick('volume') as HTMLInputElement | null;
+    const toneInput = pick('tone') as HTMLInputElement | null;
+    const powerLamp = document.querySelector<HTMLElement>('[data-lamp="power"]');
+    const signalLamp = document.querySelector<HTMLElement>('[data-lamp="signal"]');
+
+    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+    const AudioCtor = window.AudioContext || (window as any).webkitAudioContext;
+
+    // 示波画面用平涂墨色，红色取动效层同一个 --onair，不再自带上色板。
+    const accentColor = getComputedStyle(shell).getPropertyValue('--onair').trim() || '#a8271b';
+    const inkColor = 'rgba(238, 232, 218, 0.94)';
+    const ruleColor = 'rgba(238, 232, 218, 0.14)';
+
+    let audioContext: AudioContext | null = null;
+    let toneFilter: BiquadFilterNode | null = null;
+    let analyser: AnalyserNode | null = null;
+    let timeData: Uint8Array | null = null;
+    let freqData: Uint8Array | null = null;
+    let barsMode = false;
+    let seeking = false;
+    let rafId = 0;
+    let intervalId = 0;
+    let currentTape = '';
+    let tapeTitle = '未接入节目';
+
+    // Patching the element into WebAudio reroutes its output, so the graph is
+    // built once, only from a user gesture, and abandoned silently if unsupported.
+    function buildGraph() {
+      if (analyser || !AudioCtor) return;
+      try {
+        audioContext = new AudioCtor();
+        toneFilter = audioContext.createBiquadFilter();
+        toneFilter.type = 'highshelf';
+        toneFilter.frequency.value = 2600;
+        toneFilter.gain.value = toneInput ? Number(toneInput.value) : 0;
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 2048;
+        analyser.smoothingTimeConstant = 0.82;
+        timeData = new Uint8Array(analyser.fftSize);
+        freqData = new Uint8Array(analyser.frequencyBinCount);
+        audioContext.createMediaElementSource(audio).connect(toneFilter);
+        toneFilter.connect(analyser);
+        analyser.connect(audioContext.destination);
+      } catch {
+        audioContext = null;
+        toneFilter = null;
+        analyser = null;
+      }
+    }
+
+    function clock(seconds: number) {
+      if (!Number.isFinite(seconds) || seconds < 0) return '--:--';
+      const total = Math.floor(seconds);
+      return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+    }
+
+    function tapeName(value: string) {
+      if (!value) return '未接入节目';
+      const name = value.split('/').pop() || value;
+      try {
+        return decodeURIComponent(name);
+      } catch {
+        return name;
+      }
+    }
+
+    function syncProgress() {
+      const duration = Number.isFinite(audio.duration) ? audio.duration : 0;
+      const ratio = duration > 0 ? Math.min(Math.max(audio.currentTime / duration, 0), 1) : 0;
+      if (needle) needle.style.left = `${(ratio * 100).toFixed(3)}%`;
+      if (knob) knob.style.transform = `rotate(${(-120 + ratio * 240).toFixed(2)}deg)`;
+      if (tune && !seeking) tune.value = String(Math.round(ratio * 1000));
+      if (timeLabel) timeLabel.textContent = `${clock(audio.currentTime)} / ${clock(duration)}`;
+    }
+
+    function drawScope() {
+      if (!scope) return;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const width = Math.max(Math.floor(scope.clientWidth * dpr), 1);
+      const height = Math.max(Math.floor(scope.clientHeight * dpr), 1);
+      if (scope.width !== width || scope.height !== height) {
+        scope.width = width;
+        scope.height = height;
+      }
+
+      const paint = scope.getContext('2d');
+      if (!paint) return;
+
+      paint.clearRect(0, 0, width, height);
+
+      // 机柜仪表的分格线：中线给红色载波色，其余发丝墨线
+      paint.lineWidth = dpr;
+      paint.strokeStyle = ruleColor;
+      paint.beginPath();
+      paint.moveTo(0, height / 4);
+      paint.lineTo(width, height / 4);
+      paint.moveTo(0, (height * 3) / 4);
+      paint.lineTo(width, (height * 3) / 4);
+      paint.stroke();
+
+      paint.strokeStyle = accentColor;
+      paint.beginPath();
+      paint.moveTo(0, height / 2);
+      paint.lineTo(width, height / 2);
+      paint.stroke();
+
+      const live = !audio.paused && !audio.ended && analyser && timeData && freqData;
+      if (!live || !analyser || !timeData || !freqData) return;
+
+      if (barsMode) {
+        analyser.getByteFrequencyData(freqData);
+        const bars = 26;
+        const span = Math.max(Math.floor(freqData.length / 2 / bars), 1);
+        const slot = width / bars;
+        paint.fillStyle = inkColor;
+        for (let index = 0; index < bars; index += 1) {
+          let peak = 0;
+          for (let scan = 0; scan < span; scan += 1) {
+            peak = Math.max(peak, freqData[index * span + scan] || 0);
+          }
+          const barHeight = Math.max(2 * dpr, (peak / 255) * height * 0.9);
+          paint.fillRect(Math.floor(index * slot + slot * 0.18), Math.floor(height - barHeight), Math.ceil(slot * 0.64), Math.ceil(barHeight));
+        }
+      } else {
+        analyser.getByteTimeDomainData(timeData);
+        paint.strokeStyle = inkColor;
+        paint.lineWidth = 1.6 * dpr;
+        paint.beginPath();
+        const slice = width / timeData.length;
+        for (let index = 0; index < timeData.length; index += 1) {
+          const raw = ((timeData[index] || 0) - 128) / 128;
+          // 正常音量的波形只占示波窗中间一小条，稍微放大才看得出笔势。
+          const value = Math.max(-1, Math.min(1, raw * 1.6));
+          const x = index * slice;
+          const y = height / 2 + value * height * 0.42;
+          if (index === 0) paint.moveTo(x, y);
+          else paint.lineTo(x, y);
+        }
+        paint.stroke();
+      }
+    }
+
+    function stopLoop() {
+      if (rafId) cancelAnimationFrame(rafId);
+      if (intervalId) clearInterval(intervalId);
+      rafId = 0;
+      intervalId = 0;
+    }
+
+    function startLoop() {
+      stopLoop();
+      if (reducedMotion?.matches) {
+        drawScope();
+        intervalId = window.setInterval(() => {
+          drawScope();
+          syncProgress();
+        }, 240);
+      } else {
+        const step = () => {
+          drawScope();
+          syncProgress();
+          rafId = requestAnimationFrame(step);
+        };
+        rafId = requestAnimationFrame(step);
+      }
+    }
+
+    function syncState() {
+      const playing = !audio.paused && !audio.ended;
+      shell.classList.toggle('is-playing', playing);
+      shell.dataset.trace = barsMode ? 'bars' : 'wave';
+      if (playBtn) {
+        playBtn.setAttribute('aria-pressed', String(playing));
+        playBtn.setAttribute('aria-label', playing ? '暂停' : '播放');
+        playBtn.textContent = playing ? '❚❚' : '▶';
+      }
+      if (powerLamp) powerLamp.classList.toggle('is-on', Boolean(currentTape));
+      if (signalLamp) signalLamp.classList.toggle('is-on', playing);
+      if (trackLabel) trackLabel.textContent = tapeTitle;
+    }
+
+    function useTape(value: string, label?: string) {
+      currentTape = value;
+      tapeTitle = value ? label || tapeName(value) : '未接入节目';
+      if (!value) {
+        audio.pause();
+        audio.removeAttribute('src');
+        audio.load();
+      } else {
+        audio.src = value;
+        audio.load();
+        buildGraph();
+        void audio.play().catch(() => {});
+      }
+      syncState();
+      syncProgress();
+      drawScope();
+    }
+
+    audio.volume = volumeInput ? Number(volumeInput.value) / 100 : 0.8;
+
+    audio.addEventListener('play', () => {
+      if (audioContext && audioContext.state === 'suspended') void audioContext.resume().catch(() => {});
+      syncState();
+      startLoop();
+    });
+    audio.addEventListener('pause', () => {
+      syncState();
+      stopLoop();
+      drawScope();
+    });
+    audio.addEventListener('ended', () => {
+      syncState();
+      stopLoop();
+      drawScope();
+    });
+    audio.addEventListener('loadedmetadata', () => {
+      syncState();
+      syncProgress();
+    });
+    audio.addEventListener('error', () => {
+      syncState();
+    });
+
+    playBtn?.addEventListener('click', () => {
+      buildGraph();
+      if (audio.paused) {
+        if (!audio.currentSrc && select?.value) useTape(select.value);
+        else void audio.play().catch(() => {});
+      } else {
+        audio.pause();
+      }
+    });
+
+    stopBtn?.addEventListener('click', () => {
+      audio.pause();
+      audio.currentTime = 0;
+      syncState();
+      syncProgress();
+      drawScope();
+    });
+
+    ejectBtn?.addEventListener('click', () => {
+      if (select) select.value = '';
+      useTape('');
+    });
+
+    scopeToggle?.addEventListener('click', () => {
+      barsMode = !barsMode;
+      scopeToggle.setAttribute('aria-pressed', String(barsMode));
+      scopeToggle.textContent = barsMode ? '频谱' : '波形';
+      syncState();
+      drawScope();
+    });
+
+    volumeInput?.addEventListener('input', () => {
+      audio.volume = Number(volumeInput.value) / 100;
+    });
+
+    toneInput?.addEventListener('input', () => {
+      if (toneFilter) toneFilter.gain.value = Number(toneInput.value);
+    });
+
+    tune?.addEventListener('input', () => {
+      seeking = true;
+      const duration = Number.isFinite(audio.duration) ? audio.duration : 0;
+      if (duration > 0) audio.currentTime = (Number(tune.value) / 1000) * duration;
+      syncProgress();
+    });
+    tune?.addEventListener('change', () => {
+      seeking = false;
+    });
+
+    select?.addEventListener('change', () => {
+      const value = select.value;
+      // Only site tapes and locally picked files may be loaded.
+      if (value && !(value.startsWith('/music/') || value.startsWith('blob:'))) return;
+      useTape(value);
+    });
+
+    upload?.addEventListener('change', () => {
+      const file = upload.files && upload.files[0];
+      if (!file) return;
+      const objectUrl = URL.createObjectURL(file);
+      const label = `本地：${file.name}`;
+      if (select) {
+        select.appendChild(new Option(label, objectUrl, false, true));
+        select.value = objectUrl;
+      }
+      useTape(objectUrl, label);
+    });
+
+    window.addEventListener('resize', () => {
+      drawScope();
+      syncProgress();
+    });
+
+    reducedMotion?.addEventListener?.('change', () => {
+      if (!audio.paused) startLoop();
+    });
+
+    syncState();
+    syncProgress();
+    drawScope();
+  }
+</script>

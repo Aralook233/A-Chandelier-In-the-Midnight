@@ -1,0 +1,46 @@
+{
+  "name": "《吊灯》· Chandelier In the Midnight with an Idoit and a Cup",
+  "short_name": "吊灯",
+  "description": "《吊灯》——长篇小说站，含六卷正文、公开留言区与电台歌单。",
+  "lang": "zh-CN",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f5f0ea",
+  "theme_color": "#f5f0ea",
+  "categories": ["books", "entertainment"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "从第一卷开始读",
+      "url": "/Novels/第一卷/第01章/",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ]
+}

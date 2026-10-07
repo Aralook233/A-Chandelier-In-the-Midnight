@@ -16,9 +16,28 @@ pnpm-debug.log*
 # environment variables
 .env
 .env.production
+# wrangler local bindings for functions/ (may hold AUTH_SECRET / ADMIN_PASSWORD)
+.dev.vars
+.wrangler/
+
+# throwaway local preview harnesses; they embed a test AUTH_SECRET
+preview-harness.mjs
+preview-bundle.mjs
 
 # macOS-specific files
 .DS_Store
 
 # jetbrains setting folder
 .idea/
+
+# 本地流程笔记（更新/部署清单），只留在自己机器上
+更新流程.txt
+
+# 音频不进仓库：400 首走对象存储，仓库只提交清单 JSON
+public/music/*
+!public/music/.gitkeep
+!public/music/README.md
+
+# 字体源文件与切片中间产物
+*.ttf
+lxgw_face_*

@@ -1,0 +1,357 @@
+/*
+ * 主页动效层。独立于 index.astro 的一份纯 CSS 编排，两边并行改样式时互不覆盖。
+ *
+ * 风格取向：冷战年代的构成主义海报那一路 —— 平、硬、机械。
+ * 具体做法：不透明度渐变让位给 clip-path 擦除；位移只有几像素并且走 steps，
+ * 像印刷机一次一格；阴影不给高斯模糊，给 3px 实色偏移（套印没对准的那种）；
+ * 转角一律不做圆润处理。循环动画（原先吊灯光环的呼吸）整体删掉，画面里已经有
+ * 超立方体线框在动，不需要第二处动。
+ *
+ * 配色只新增一个变量 --motion-accent（红旗红），按页面已有的主题机制分深浅两档，
+ * 其余一律复用页面 token（--ink / --line-strong / --tint-rgb）。
+ *
+ * 接线方式（在 index.astro 的 frontmatter 里，story-font.css 之后加一行）：
+ *   import '../styles/homepage-motion.css';
+ *
+ * 全站 CSP 是 script-src 'self'，所以这里只用 CSS：进场与滚动揭示走 @keyframes 与
+ * 原生 scroll-driven animations，不需要任何脚本。
+ *
+ * 想退回无红色的中性版本：把 --motion-accent 改成 var(--gold) 即可，其余不用动。
+ */
+
+:root {
+  --motion-cut: 160ms;
+  --motion-wipe: 260ms;
+  --motion-snap: 220ms;
+  --motion-stagger: 40ms;
+
+  /* 硬停，不出弹性；印刷滑轨那种 linear */
+  --ease-hard: cubic-bezier(0.2, 0.72, 0.2, 1);
+  --ease-print: steps(4, end);
+
+  --motion-accent: #a8271b;
+}
+
+:root[data-theme='dark'] {
+  --motion-accent: #d2503a;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --motion-accent: #d2503a;
+  }
+}
+
+/*
+ * 关键帧只用独立的 translate / scale，不碰 transform：那边 .chapter-item:hover
+ * 靠 transform 做位移，动画的 fill 会盖掉同名属性，分开写才互不干涉。
+ */
+
+/* 纯色擦出，不做淡入 */
+@keyframes wipe-in {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+/* 擦出 + 三像素硬位，收尾用 steps，像纸被压印到位 */
+@keyframes stamp-in {
+  from {
+    clip-path: inset(0 100% 0 0);
+    translate: -3px 0;
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+    translate: 0 0;
+  }
+}
+
+/* 对话框：整块从下往上顶到位，没有缩放 */
+@keyframes block-in {
+  from {
+    clip-path: inset(100% 0 0 0);
+    translate: 0 8px;
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+    translate: 0 0;
+  }
+}
+
+@keyframes rail-in {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/*
+ * 进场编排：整屏自上而下擦出，间隔 40ms 一格。侧栏是 position: sticky，
+ * 只给它擦除不给位移，免得和粘性重绘打架。
+ *
+ * 填充一律用 backwards 而不是 both：动画结束后 clip-path 要交还给元素本身。
+ * both 会把 inset(0 0 0 0) 永久留在这些面板上，把它们自带的柔和投影裁掉。
+ */
+.topbar {
+  animation: wipe-in var(--motion-wipe) var(--ease-hard) backwards;
+}
+
+.hero-stage,
+.lost-stage {
+  animation: wipe-in var(--motion-wipe) var(--ease-hard) var(--motion-stagger) backwards;
+}
+
+.sidebar {
+  animation: wipe-in var(--motion-wipe) var(--ease-hard) var(--motion-stagger) backwards;
+}
+
+.brand-block {
+  animation: stamp-in var(--motion-snap) var(--ease-print) 80ms backwards;
+}
+
+.intro-panel {
+  animation: stamp-in var(--motion-snap) var(--ease-print) 120ms backwards;
+}
+
+.story-panel {
+  animation: stamp-in var(--motion-snap) var(--ease-print) 160ms backwards;
+}
+
+.discussion-panel {
+  animation: stamp-in var(--motion-snap) var(--ease-print) 200ms backwards;
+}
+
+/*
+ * 展开卷目录时章节条目逐格压印出来，而不是一整块闪现。
+ * nth-child 只铺到 8，更长的列表统一排在最后一档。
+ */
+.volume-panel.is-open .chapter-item {
+  animation: stamp-in var(--motion-cut) var(--ease-print) backwards;
+}
+
+.volume-panel.is-open .chapter-item:nth-child(1) {
+  animation-delay: 0ms;
+}
+
+.volume-panel.is-open .chapter-item:nth-child(2) {
+  animation-delay: 30ms;
+}
+
+.volume-panel.is-open .chapter-item:nth-child(3) {
+  animation-delay: 60ms;
+}
+
+.volume-panel.is-open .chapter-item:nth-child(4) {
+  animation-delay: 90ms;
+}
+
+.volume-panel.is-open .chapter-item:nth-child(5) {
+  animation-delay: 120ms;
+}
+
+.volume-panel.is-open .chapter-item:nth-child(6) {
+  animation-delay: 150ms;
+}
+
+.volume-panel.is-open .chapter-item:nth-child(7) {
+  animation-delay: 180ms;
+}
+
+.volume-panel.is-open .chapter-item:nth-child(n + 8) {
+  animation-delay: 210ms;
+}
+
+/* 对话框：遮罩硬切，卡片慢一格顶上来 */
+.auth-modal.is-open {
+  animation: wipe-in var(--motion-cut) linear backwards;
+}
+
+.auth-modal.is-open .auth-modal-card {
+  animation: block-in var(--motion-snap) var(--ease-hard) 60ms backwards;
+  will-change: translate, clip-path;
+}
+
+/*
+ * 交互反馈。构成主义不给柔光：状态变化一律实色描边 + 3px 偏移的套印阴影，
+ * 按下时偏移归零，像纸被压平。偏移阴影只在 hover: hover 里给，否则触屏上点完
+ * 会一直挂着不走。
+ *
+ * 只对 .discussion-item 写 transition（它原本没有）；.chapter-item 与 .volume-panel
+ * 已有的 transition 列表里没有 box-shadow，硬加会让阴影变成生硬闪现，所以不动它们。
+ */
+.auth-button,
+.theme-toggle,
+.modal-submit,
+.modal-cancel,
+.discussion-form button {
+  transition: box-shadow var(--motion-cut) linear, border-color var(--motion-cut) linear, translate var(--motion-cut) linear;
+}
+
+@media (hover: hover) {
+  .auth-button:hover,
+  .theme-toggle:hover,
+  .modal-submit:hover,
+  .modal-cancel:hover,
+  .discussion-form button:hover {
+    border-color: var(--motion-accent);
+    box-shadow: 3px 3px 0 var(--motion-accent);
+  }
+}
+
+.auth-button:active,
+.theme-toggle:active,
+.modal-submit:active,
+.modal-cancel:active,
+.discussion-form button:active {
+  translate: 3px 3px;
+  box-shadow: none;
+}
+
+@media (hover: hover) {
+  .discussion-item {
+    position: relative;
+    transition: box-shadow var(--motion-cut) linear, border-color var(--motion-cut) linear;
+  }
+
+  .discussion-item:hover {
+    border-color: var(--motion-accent);
+    box-shadow: inset 3px 0 0 var(--motion-accent);
+  }
+
+  /* 悬停时左侧压出一条直角标记条 */
+  .discussion-item::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 12px;
+    bottom: 12px;
+    width: 3px;
+    background: var(--motion-accent);
+    transform: scaleY(0);
+    transform-origin: top;
+    transition: transform var(--motion-cut) var(--ease-print);
+  }
+
+  .discussion-item:hover::after,
+  .discussion-item:focus-within::after {
+    transform: scaleY(1);
+  }
+}
+
+/*
+ * 眉标前一面小红块，全站唯一的装饰图形，其余留白。
+ * 用行内伪元素而不是改 .eyebrow 的 display，避免动到那边的盒模型。
+ */
+.eyebrow::before {
+  content: '';
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 10px;
+  vertical-align: -2px;
+  background: var(--motion-accent);
+}
+
+/* 焦点一律方形实线，不做圆角柔光 */
+:where(a, button, input, select, textarea, summary):focus-visible {
+  outline: 2px solid var(--motion-accent);
+  outline-offset: 2px;
+}
+
+.form-field input:focus,
+.form-field select:focus,
+.form-field textarea:focus,
+.auth-form input:focus {
+  border-color: var(--motion-accent);
+  box-shadow: 3px 3px 0 var(--motion-accent);
+}
+
+/*
+ * 滚动进度：顶部一条 3px 实色标尺，随阅读位置硬推进。
+ * 不支持 scroll-driven 的引擎整段不生效，也没有降级脚本。
+ * 章节页已经自带一条 .reading-progress（脚本驱动的渐变进度条），那条页面上不再叠第二条，
+ * 否则顶部会出现两根颜色不同的尺子。
+ */
+@supports (animation-timeline: scroll(root)) {
+  html:not(:has(.reading-progress))::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 3px;
+    width: 100%;
+    /* 压过正文，但让位给登录弹窗（那边是 1000）：弹窗开着时进度尺不该盖在遮罩上 */
+    z-index: 999;
+    background: var(--motion-accent);
+    transform-origin: left;
+    transform: scaleX(0);
+    animation: rail-in linear both;
+    animation-timeline: scroll(root);
+  }
+}
+
+/*
+ * 进入视口再揭示：只在支持 scroll-driven animations 的引擎里启用。
+ * 不支持的引擎保持"全部可见"，不会出现卡在不可见状态的区块。
+ */
+@supports (animation-timeline: view()) {
+  @media (hover: hover) {
+    /* 留言由脚本在运行时插入，滚到才压印；首屏区块上面已有进场编排 */
+    .discussion-list > .discussion-item {
+      animation: stamp-in linear backwards;
+      animation-timeline: view();
+      animation-range: entry 0% cover 22%;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-cut: 1ms;
+    --motion-wipe: 1ms;
+    --motion-snap: 1ms;
+  }
+
+  /* 到位即可：只保留一次擦除，循环与滚动揭示全关 */
+  .topbar,
+  .hero-stage,
+  .lost-stage,
+  .sidebar,
+  .brand-block,
+  .intro-panel,
+  .story-panel,
+  .discussion-panel,
+  .auth-modal.is-open,
+  .auth-modal.is-open .auth-modal-card,
+  .volume-panel.is-open .chapter-item {
+    animation: wipe-in 1ms linear backwards;
+  }
+
+  html::before,
+  .discussion-list > .discussion-item {
+    animation: none;
+  }
+
+  .auth-button,
+  .theme-toggle,
+  .modal-submit,
+  .modal-cancel,
+  .discussion-form button,
+  .discussion-item,
+  .discussion-item::after {
+    transition: none;
+  }
+
+  .auth-button:active,
+  .theme-toggle:active,
+  .modal-submit:active,
+  .modal-cancel:active,
+  .discussion-form button:active {
+    translate: none;
+  }
+}

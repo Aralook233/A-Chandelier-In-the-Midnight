@@ -1,0 +1,41 @@
+/*
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; script-src 'self'; script-src-attr 'none'; style-src 'self'; img-src 'self' data:; font-src 'self'; media-src 'self' blob:; connect-src 'self'; object-src 'none'; frame-src 'none'; form-action 'self'; frame-ancestors 'none'; manifest-src 'self'; upgrade-insecure-requests
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), interest-cohort=()
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Resource-Policy: same-origin
+  X-XSS-Protection: 0
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+
+/
+/index.html
+/Novels/*
+  Cache-Control: public, max-age=0, must-revalidate
+
+/404.html
+  Cache-Control: public, max-age=0, must-revalidate
+  X-Robots-Tag: noindex
+
+/rss.xml
+  Cache-Control: public, max-age=1800
+
+/manifest.webmanifest
+  Cache-Control: public, max-age=3600
+
+/_astro/*
+  Cache-Control: public, max-age=31536000, immutable
+  X-Content-Type-Options: nosniff
+
+/fonts/*
+  Cache-Control: public, max-age=31536000, immutable
+  X-Content-Type-Options: nosniff
+
+/music/*
+  Cache-Control: public, max-age=86400
+  Cross-Origin-Resource-Policy: same-origin
+
+/.well-known/*
+  Cache-Control: public, max-age=3600
+  X-Robots-Tag: noindex

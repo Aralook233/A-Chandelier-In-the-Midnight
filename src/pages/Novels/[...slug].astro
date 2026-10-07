@@ -1,5 +1,9 @@
 ---
 import { getCollection, render } from 'astro:content';
+import RadioPlayer from '../../components/RadioPlayer.astro';
+import '../../styles/story-font.css';
+import '../../styles/homepage-motion.css';
+import '../../styles/story-typography.css';
 
 export async function getStaticPaths() {
   const partOrder = ['第一卷', '第二卷', '第三卷', '第四卷', '第五卷', '第六卷'];
@@ -54,32 +58,95 @@ const { Content } = await render(entry);
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>{entry.data.title} - Chandelier In the Midnight with an Idoit and a Cup · 《吊灯》</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="alternate icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#f5f0ea" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#17140f" />
+    <link rel="alternate" type="application/rss+xml" title="《吊灯》更新订阅" href="/rss.xml" />
     <style>
       :root {
+        color-scheme: light;
         --paper: #f5f0ea;
         --paper-deep: #efe8df;
         --paper-soft: rgba(255, 255, 255, 0.42);
         --ink: #1b1b1b;
         --ink-soft: #5b564f;
+        --muted: var(--ink-soft);
         --line: rgba(20, 20, 20, 0.14);
         --line-strong: rgba(20, 20, 20, 0.22);
         --panel: rgba(255, 255, 255, 0.18);
         --shadow: rgba(55, 38, 22, 0.12);
         --gold: #8d7a5a;
         --glow: rgba(126, 111, 83, 0.26);
+
+        --tint-rgb: 255, 255, 255;
+        --page-bg:
+          radial-gradient(circle at top, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0) 32%),
+          linear-gradient(180deg, #f6f1eb 0%, #efe8df 100%);
+        --input-bg: rgba(255, 255, 255, 0.4);
+        --chip-bg: rgba(0, 0, 0, 0.02);
+        --active-bg: rgba(0, 0, 0, 0.03);
+      }
+
+      :root[data-theme='dark'] {
+        color-scheme: dark;
+        --paper: #17140f;
+        --paper-deep: #12100c;
+        --paper-soft: rgba(255, 255, 255, 0.06);
+        --ink: #ece4d6;
+        --ink-soft: #a89c8a;
+        --line: rgba(232, 220, 200, 0.16);
+        --line-strong: rgba(232, 220, 200, 0.26);
+        --panel: rgba(255, 255, 255, 0.05);
+        --shadow: rgba(0, 0, 0, 0.45);
+        --gold: #c8ab72;
+        --glow: rgba(200, 171, 114, 0.22);
+
+        --tint-rgb: 214, 200, 178;
+        --page-bg:
+          radial-gradient(circle at top, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 32%),
+          linear-gradient(180deg, #17140f 0%, #100e0a 100%);
+        --input-bg: rgba(255, 255, 255, 0.08);
+        --chip-bg: rgba(255, 255, 255, 0.05);
+        --active-bg: rgba(255, 255, 255, 0.12);
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme='light']) {
+          color-scheme: dark;
+          --paper: #17140f;
+          --paper-deep: #12100c;
+          --paper-soft: rgba(255, 255, 255, 0.06);
+          --ink: #ece4d6;
+          --ink-soft: #a89c8a;
+          --line: rgba(232, 220, 200, 0.16);
+          --line-strong: rgba(232, 220, 200, 0.26);
+          --panel: rgba(255, 255, 255, 0.05);
+          --shadow: rgba(0, 0, 0, 0.45);
+          --gold: #c8ab72;
+          --glow: rgba(200, 171, 114, 0.22);
+
+          --tint-rgb: 214, 200, 178;
+          --page-bg:
+            radial-gradient(circle at top, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 32%),
+            linear-gradient(180deg, #17140f 0%, #100e0a 100%);
+          --input-bg: rgba(255, 255, 255, 0.08);
+          --chip-bg: rgba(255, 255, 255, 0.05);
+          --active-bg: rgba(255, 255, 255, 0.12);
+        }
       }
 
       * { box-sizing: border-box; }
       html, body {
         margin: 0;
         min-height: 100vh;
-        background:
-          radial-gradient(circle at top, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0) 32%),
-          linear-gradient(180deg, #f6f1eb 0%, #efe8df 100%);
+        background: var(--page-bg);
         color: var(--ink);
-        font-family: '宋体', 'SimSun', 'Noto Serif SC', serif;
+        font-family: var(--font-story);
       }
       body {
         min-height: 100vh;
@@ -87,8 +154,87 @@ const { Content } = await render(entry);
       a { color: inherit; }
       .topbar {
         height: 64px;
-        background: rgba(255, 255, 255, 0.2);
+        background: rgba(var(--tint-rgb), 0.2);
         border-bottom: 1px solid var(--line);
+      }
+      .topbar-inner {
+        max-width: 1280px;
+        height: 100%;
+        margin: 0 auto;
+        padding: 0 18px;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 10px;
+      }
+      .theme-toggle {
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: rgba(var(--tint-rgb), 0.24);
+        color: var(--ink);
+        padding: 8px 14px;
+        font: inherit;
+        cursor: pointer;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      /* 平涂 + 发丝线 + 3px 实色偏移，和 homepage-motion.css 同一套语言 */
+      .reading-progress {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 10px;
+        z-index: 50;
+        background: var(--chip-bg);
+        border-bottom: 1px solid var(--line-strong);
+        pointer-events: none;
+      }
+      .reading-progress-fill {
+        display: block;
+        height: 100%;
+        width: 100%;
+        transform: scaleX(0);
+        transform-origin: 0 50%;
+        background: var(--motion-accent);
+        transition: transform 0.12s linear;
+      }
+      .reading-progress-badge {
+        position: fixed;
+        top: 16px;
+        left: 50%;
+        z-index: 51;
+        padding: 4px 12px 5px;
+        border: 1px solid var(--line-strong);
+        background: var(--paper-deep);
+        color: var(--ink-soft);
+        box-shadow: 3px 3px 0 var(--line-strong);
+        font-size: 0.74rem;
+        letter-spacing: 0.16em;
+        white-space: nowrap;
+        opacity: 0;
+        transform: translateX(-50%) translateY(-8px);
+        pointer-events: none;
+        transition: opacity 0.2s ease, transform 0.2s ease;
+      }
+      .reading-progress-badge.is-visible {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
+      /* 完成态用红色描边和偏移块标记，文字仍走 --ink：小字号上金色和深红都不过 AA */
+      .reading-progress-badge.is-complete {
+        color: var(--ink);
+        border-color: var(--motion-accent);
+        box-shadow: 3px 3px 0 var(--motion-accent);
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .reading-progress-fill {
+          transition: none;
+        }
+
+        .reading-progress-badge {
+          transition: none;
+        }
       }
       .layout {
         max-width: 1280px;
@@ -103,7 +249,7 @@ const { Content } = await render(entry);
         position: sticky;
         top: 18px;
         align-self: start;
-        background: rgba(255, 255, 255, 0.22);
+        background: rgba(var(--tint-rgb), 0.22);
         border: 1px solid var(--line);
         border-radius: 22px;
         padding: 18px 14px;
@@ -124,51 +270,6 @@ const { Content } = await render(entry);
         margin-top: 6px;
         font-size: 1.5rem;
         font-weight: 700;
-      }
-      .music-panel {
-        margin-bottom: 18px;
-        padding: 12px 10px;
-        border: 1px solid var(--line);
-        border-radius: 14px;
-        background: rgba(255, 255, 255, 0.16);
-      }
-      .music-header {
-        margin: 0 0 10px;
-        font-size: 0.8rem;
-        color: var(--muted);
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-      }
-      .music-select {
-        width: 100%;
-        margin-bottom: 10px;
-        padding: 9px 10px;
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        background: rgba(255, 255, 255, 0.4);
-        color: var(--ink);
-        font: inherit;
-      }
-      .music-player {
-        width: 100%;
-        max-width: 100%;
-        margin-bottom: 10px;
-      }
-      .upload-label {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 100%;
-        padding: 8px 10px;
-        border: 1px dashed var(--line);
-        border-radius: 8px;
-        background: rgba(0, 0, 0, 0.02);
-        cursor: pointer;
-        font-size: 0.86rem;
-        color: var(--muted);
-      }
-      .upload-label input {
-        display: none;
       }
       .sidebar h2 {
         margin: 0 0 14px;
@@ -200,13 +301,13 @@ const { Content } = await render(entry);
       }
       .chapter-link:hover,
       .chapter-link.active {
-        background: rgba(0, 0, 0, 0.03);
+        background: var(--active-bg);
         border-color: var(--line);
       }
       .article-panel {
         width: 100%;
         justify-self: start;
-        background: rgba(255, 255, 255, 0.12);
+        background: rgba(var(--tint-rgb), 0.12);
         border: 1px solid var(--line);
         border-radius: 20px;
         padding: 32px 32px 40px;
@@ -226,14 +327,24 @@ const { Content } = await render(entry);
         text-align: right;
       }
       article {
-        line-height: 2.1;
+        color: var(--ink);
         font-size: 1.06rem;
+        line-height: 2.15;
+      }
+      /* Markdown 渲染出的标签不带本页的 scope 属性，必须用 :global 才能命中。 */
+      article :global(p) {
+        margin: 0 0 1.35em;
         text-align: justify;
         text-indent: 2em;
-        color: var(--ink);
+        line-break: strict;
+        overflow-wrap: break-word;
       }
-      article p {
-        margin: 0 0 1.3em;
+      article :global(p:last-child) {
+        margin-bottom: 0;
+      }
+      /* 开篇首句自成一段后，与正文之间留一次完整的呼吸。 */
+      article > :global(p:first-child) {
+        margin-bottom: 1.9em;
       }
       .nav-row {
         display: flex;
@@ -251,12 +362,12 @@ const { Content } = await render(entry);
         padding: 12px 16px;
         border-radius: 8px;
         border: 1px solid var(--line);
-        background: rgba(255, 255, 255, 0.08);
+        background: rgba(var(--tint-rgb), 0.08);
         text-decoration: none;
         color: var(--ink);
       }
       .nav-link.next {
-        background: rgba(0, 0, 0, 0.02);
+        background: var(--chip-bg);
       }
       .home-link {
         display: inline-flex;
@@ -266,36 +377,84 @@ const { Content } = await render(entry);
         padding: 8px 10px;
         border: 1px solid var(--line);
         border-radius: 999px;
-        background: rgba(255, 255, 255, 0.08);
+        background: rgba(var(--tint-rgb), 0.08);
         color: var(--ink);
         text-decoration: none;
         font-size: 0.78rem;
         letter-spacing: 0.08em;
         text-transform: uppercase;
       }
+      @media (max-width: 1100px) {
+        .layout {
+          grid-template-columns: 232px minmax(0, 1fr);
+          gap: 22px;
+        }
+
+        .article-panel {
+          padding: 28px 26px 34px;
+        }
+      }
+
+      @media (max-width: 1024px) {
+        .theme-toggle,
+        .home-link,
+        .chapter-link,
+        .nav-link {
+          min-height: 44px;
+        }
+      }
+
       @media (max-width: 900px) {
         .layout {
           grid-template-columns: 1fr;
+          padding: 20px 16px 44px;
+          gap: 18px;
         }
 
         .sidebar {
           position: static;
+          order: 2;
+          margin-top: 6px;
+        }
+
+        .chapter-list {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .chapter-link {
+          padding: 10px 12px;
+          overflow-wrap: anywhere;
         }
 
         .article-panel {
+          order: 1;
           padding: 24px 20px 30px;
+          min-height: 0;
         }
       }
 
       @media (max-width: 560px) {
         .layout {
-          padding-left: 12px;
-          padding-right: 12px;
+          padding-left: max(12px, env(safe-area-inset-left));
+          padding-right: max(12px, env(safe-area-inset-right));
+          padding-bottom: max(40px, env(safe-area-inset-bottom));
           gap: 16px;
+        }
+
+        .topbar {
+          height: 58px;
+        }
+
+        .topbar-inner {
+          padding: 0 12px;
         }
 
         .sidebar {
           padding: 14px 12px;
+        }
+
+        .chapter-list {
+          grid-template-columns: 1fr;
         }
 
         .brand-cn {
@@ -309,6 +468,7 @@ const { Content } = await render(entry);
 
         .article-panel {
           padding: 20px 16px 28px;
+          border-radius: 16px;
         }
 
         h1 {
@@ -316,8 +476,13 @@ const { Content } = await render(entry);
         }
 
         article {
-          font-size: 1rem;
-          line-height: 1.9;
+          font-size: 1.02rem;
+          line-height: 1.95;
+        }
+
+        article :global(p) {
+          margin-bottom: 1.2em;
+          text-indent: 1.5em;
         }
 
         .nav-row {
@@ -327,12 +492,22 @@ const { Content } = await render(entry);
 
         .nav-link {
           min-width: unset;
+          min-height: 44px;
         }
       }
     </style>
   </head>
   <body>
-    <header class="topbar" aria-label="顶部导航"></header>
+    <div class="reading-progress" id="readingProgress" role="progressbar" aria-label="阅读进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+      <span class="reading-progress-fill" id="readingProgressFill"></span>
+    </div>
+    <span class="reading-progress-badge" id="readingProgressBadge" aria-hidden="true">已读 0%</span>
+
+    <header class="topbar" aria-label="顶部导航">
+      <div class="topbar-inner">
+        <button class="theme-toggle" id="themeToggle" type="button" data-theme-toggle aria-pressed="false">深色</button>
+      </div>
+    </header>
 
     <div class="layout">
       <aside class="sidebar">
@@ -343,20 +518,7 @@ const { Content } = await render(entry);
 
         <a class="home-link" href="/" aria-label="返回主页">← 回到主页</a>
 
-        <div class="music-panel">
-          <div class="music-header">音乐播放器</div>
-          <select class="music-select" id="musicSelect" aria-label="选择播放音乐">
-            <option value="">请选择音乐</option>
-            {musicFiles.map((fileName) => (
-              <option value={`/music/${encodeURIComponent(fileName)}`}>{fileName}</option>
-            ))}
-          </select>
-          <audio class="music-player" id="musicPlayer" controls preload="none"></audio>
-          <label class="upload-label">
-            <input id="musicUpload" type="file" accept=".mp3,.wav,.m4a,.ogg,.aac,.flac,.mid,.midi,.opus,.webm,audio/*" />
-            <span>上传本地音乐</span>
-          </label>
-        </div>
+        <RadioPlayer musicFiles={musicFiles} />
 
         <h2>章节列表</h2>
         {chapterPartOrder.map((part) => {
@@ -403,38 +565,50 @@ const { Content } = await render(entry);
       </main>
     </div>
 
-    <script is:inline>
-      const musicSelect = document.getElementById('musicSelect');
-      const musicPlayer = document.getElementById('musicPlayer');
-      const musicUpload = document.getElementById('musicUpload');
+    <script>
+      import { initTheme, toggleTheme } from '../../utils/theme';
 
-      if (musicSelect && musicPlayer) {
-        musicSelect.addEventListener('change', () => {
-          const selected = musicSelect.value;
-          if (!selected) {
-            musicPlayer.removeAttribute('src');
-            musicPlayer.load();
-            return;
+      initTheme();
+      document.getElementById('themeToggle')?.addEventListener('click', () => toggleTheme());
+
+      const progressBar = document.getElementById('readingProgress');
+      const progressFill = document.getElementById('readingProgressFill');
+      const progressBadge = document.getElementById('readingProgressBadge');
+
+      if (progressBar && progressFill) {
+        let ticking = false;
+
+        const updateProgress = () => {
+          ticking = false;
+          const doc = document.documentElement;
+          const scrollable = doc.scrollHeight - doc.clientHeight;
+          const ratio = scrollable > 0 ? Math.min(Math.max((window.scrollY || doc.scrollTop || 0) / scrollable, 0), 1) : 0;
+          const percent = Math.round(ratio * 100);
+          const done = percent >= 99;
+
+          progressFill.style.transform = `scaleX(${ratio.toFixed(4)})`;
+          progressBar.setAttribute('aria-valuenow', String(percent));
+          progressBar.setAttribute('aria-valuetext', done ? '已读完全章' : `已读 ${percent}%`);
+
+          if (progressBadge) {
+            progressBadge.textContent = done ? '本章读完' : `已读 ${percent}%`;
+            progressBadge.classList.toggle('is-visible', ratio > 0.01);
+            progressBadge.classList.toggle('is-complete', done);
           }
+        };
 
-          musicPlayer.src = selected;
-          musicPlayer.load();
-          musicPlayer.play().catch(() => {});
+        const requestUpdate = () => {
+          if (ticking) return;
+          ticking = true;
+          requestAnimationFrame(updateProgress);
+        };
+
+        window.addEventListener('scroll', requestUpdate, { passive: true });
+        window.addEventListener('resize', requestUpdate);
+        document.addEventListener('visibilitychange', () => {
+          if (!document.hidden) requestUpdate();
         });
-      }
-
-      if (musicUpload && musicPlayer) {
-        musicUpload.addEventListener('change', (event) => {
-          const file = event.target.files && event.target.files[0];
-          if (!file) return;
-
-          const objectUrl = URL.createObjectURL(file);
-          const option = new Option(`本地：${file.name}`, objectUrl, false, true);
-          musicSelect?.appendChild(option);
-          musicPlayer.src = objectUrl;
-          musicPlayer.load();
-          musicPlayer.play().catch(() => {});
-        });
+        requestAnimationFrame(updateProgress);
       }
     </script>
   </body>
