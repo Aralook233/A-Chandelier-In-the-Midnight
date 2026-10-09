@@ -262,9 +262,22 @@ try {
         margin: 0 auto;
         padding: 26px 20px 60px;
         display: grid;
-        grid-template-columns: minmax(260px, 320px) minmax(0, 980px);
+        /* 手机优先，理由与章节页 .layout 相同：默认单列，够宽才放侧栏 */
+        grid-template-columns: 1fr;
         justify-content: center;
         gap: 28px;
+      }
+
+      @media (min-width: 901px) {
+        .app-shell {
+          grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+        }
+      }
+
+      @media (min-width: 1101px) {
+        .app-shell {
+          grid-template-columns: minmax(260px, 320px) minmax(0, 980px);
+        }
       }
 
       .sidebar {
@@ -820,7 +833,6 @@ try {
 
       @media (max-width: 1100px) {
         .app-shell {
-          grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
           gap: 22px;
         }
 

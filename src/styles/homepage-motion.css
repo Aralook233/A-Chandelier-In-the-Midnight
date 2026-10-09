@@ -20,6 +20,12 @@
  */
 
 :root {
+  /* 国产 Chromium 内核（夸克/UC/QQ）会对"看起来不像移动版"的页面做字体膨胀：
+     字号被放大而盒子宽度不变，正文就压成一列一个字。100% 显式关掉这套机制，
+     标准浏览器上没有任何副作用。 */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+
   --motion-cut: 160ms;
   --motion-wipe: 260ms;
   --motion-snap: 220ms;

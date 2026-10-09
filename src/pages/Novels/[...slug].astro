@@ -241,9 +241,23 @@ const { Content } = await render(entry);
         margin: 0 auto;
         padding: 24px 18px 60px;
         display: grid;
-        grid-template-columns: 260px minmax(0, 980px);
+        /* 手机优先：单列是默认值，带侧栏的两列只在视口确实够宽时才加回来。
+           原来反过来写（默认两列 + max-width 断点收回），内核不执行这些断点的
+           浏览器就会把正文挤到 min-content —— 中文的 min-content 是一个字宽，
+           于是出现"一行一个字"的长列。 */
+        grid-template-columns: 1fr;
         justify-content: center;
         gap: 28px;
+      }
+      @media (min-width: 901px) {
+        .layout {
+          grid-template-columns: 232px minmax(0, 1fr);
+        }
+      }
+      @media (min-width: 1101px) {
+        .layout {
+          grid-template-columns: 260px minmax(0, 980px);
+        }
       }
       .sidebar {
         position: sticky;
@@ -386,7 +400,6 @@ const { Content } = await render(entry);
       }
       @media (max-width: 1100px) {
         .layout {
-          grid-template-columns: 232px minmax(0, 1fr);
           gap: 22px;
         }
 
@@ -406,7 +419,6 @@ const { Content } = await render(entry);
 
       @media (max-width: 900px) {
         .layout {
-          grid-template-columns: 1fr;
           padding: 20px 16px 44px;
           gap: 18px;
         }

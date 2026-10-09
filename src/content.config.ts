@@ -7,6 +7,9 @@ const novels = defineCollection({
     title: z.string(),
     part: z.string(),
     chapter: z.number(),
+    // Optional publish date ("2026-10-08" or full ISO). The RSS feed needs a
+    // date the repository can reproduce — see src/pages/rss.xml.js.
+    published: z.string().optional(),
   }),
 });
 

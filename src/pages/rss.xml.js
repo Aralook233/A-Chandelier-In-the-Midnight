@@ -4,13 +4,19 @@
 // 要字符串模板，多一个依赖就多一次安装面和一条供应链。这里零依赖。
 //
 // 域名从构建环境变量取，按优先级：
-//   PUBLIC_SITE_URL   —— 建议设置（Cloudflare Pages → Settings → Build &
-//                        development → Environment variables，构建时可见）
-//   CF_PAGES_URL / DEPLOY_URL —— Pages 构建时自带，退化为 *.pages.dev
+//   PUBLIC_SITE_URL   —— 必须设置（Cloudflare Pages → Settings → Build &
+//                        development → Environment variables，构建时可见；Secrets
+//                        在这里读不到）
+//   CF_PAGES_URL / DEPLOY_URL —— 兜底，是「本次部署专属」的 *.pages.dev 地址，
+//                        每次部署都换，绝不能当作订阅地址
 //   本地开发 —— http://localhost:4321
 // 订阅链接一旦发出就会被阅读器记住，所以正式域名应该固定，不要依赖部署哈希。
+//
+// 日期只信 frontmatter 的 `published`，不信文件时间：git 检出不保存 mtime，
+// Cloudflare 构建机上 41 个章节的 mtime 全等于那次 checkout 的时间，pubDate 会
+// 每次部署都变，阅读器把它们全部当成新文章重推一遍。没有日期的条目不输出
+// pubDate，按卷章倒序排在有日期的条目后面。
 import { getCollection } from 'astro:content';
-import { join } from 'node:path';
 
 const PART_ORDER = ['第一卷', '第二卷', '第三卷', '第四卷', '第五卷', '第六卷'];
 const CHANNEL = {
@@ -58,20 +64,16 @@ function plainSummary(markdown) {
   return Array.from(text).slice(0, 160).join('');
 }
 
-async function fileTime(filePath) {
-  try {
-    const fs = await import('node:fs/promises');
-    // `filePath` from the glob loader is already relative to the project root
-    // ("src/content/novels/…"), and the build runs from that root. Resolving it
-    // against import.meta.url instead would look inside dist/.prerender, where
-    // the markdown never is.
-    const stat = await fs.stat(join(process.cwd(), String(filePath)));
-    return stat.mtime;
-  } catch {
-    // 拿不到文件时间时退回构建时间：宁可由阅读器判定为一次正常更新，也不要
-    // 输出一个 Invalid Date 让严格解析器整个拒收这个源。
-    return new Date();
-  }
+function declaredTime(value) {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+// 卷章在稿件序列里的位置，用来在没有时间可比时决定先后。
+function position(entry) {
+  const partIndex = PART_ORDER.indexOf(entry.data.part);
+  return (partIndex === -1 ? PART_ORDER.length : partIndex) * 100 + Number(entry.data.chapter);
 }
 
 export async function GET() {
@@ -90,21 +92,39 @@ export async function GET() {
   const items = [];
   for (const entry of entries) {
     const slug = entry.id.replace(/\.md$/, '');
-    const link = `${site}/Novels/${slug}/`;
-    const published = await fileTime(entry.filePath);
+    // Percent-encoded: RFC 3986 URIs are ASCII, and a raw 中文 path in <guid
+    // isPermaLink="true"> makes strict readers/validators reject the entry.
+    const link = `${site}/Novels/${encodeURI(slug)}/`;
     const summary = plainSummary(entry.body) || `${entry.data.part} 第${entry.data.chapter}章`;
+
+    // Frontmatter still holds "第一卷第1章" placeholders; repeating them after
+    // "第一卷 · 第01章" would only add noise to the reader's list.
+    const heading = `${entry.data.part} · 第${String(entry.data.chapter).padStart(2, '0')}章`;
+    const placeholder = new RegExp(`^${entry.data.part}\\s*第\\s*${entry.data.chapter}\\s*章$`).test(
+      String(entry.data.title || '').trim(),
+    );
 
     items.push({
       link,
-      title: `${entry.data.part} · 第${String(entry.data.chapter).padStart(2, '0')}章 ${entry.data.title}`,
+      title: placeholder ? heading : `${heading} ${entry.data.title}`,
       description: summary,
-      published,
+      published: declaredTime(entry.data.published),
+      position: position(entry),
     });
   }
 
-  // 倒序：订阅者要第一眼看到最新章节。按时间排而不是按卷章排，回改早期章节也会
-  // 如实出现在最前面；同时间的条目保留卷章顺序（Array#sort 是稳定的）。
-  items.sort((a, b) => b.published.getTime() - a.published.getTime());
+  // 倒序：订阅者要第一眼看到最新章节。有 `published` 的排在前面并按时间倒序，
+  // 回改早期章节也会如实出现在最前；剩下没标日期的按卷章倒序，两者都不依赖
+  // 构建机上的文件时间，所以每次部署结果一致。
+  items.sort((a, b) => {
+    const left = a.published ? a.published.getTime() : null;
+    const right = b.published ? b.published.getTime() : null;
+
+    if (left !== null && right !== null && left !== right) return right - left;
+    if (left !== null && right === null) return -1;
+    if (left === null && right !== null) return 1;
+    return b.position - a.position;
+  });
 
   const buildTime = new Date().toUTCString();
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -122,8 +142,7 @@ ${items.map((item) => `    <item>
       <title>${escapeXml(item.title)}</title>
       <link>${escapeXml(item.link)}</link>
       <guid isPermaLink="true">${escapeXml(item.link)}</guid>
-      <pubDate>${item.published.toUTCString()}</pubDate>
-      <description>${escapeXml(item.description)}</description>
+      ${item.published ? `<pubDate>${item.published.toUTCString()}</pubDate>\n      ` : ''}<description>${escapeXml(item.description)}</description>
     </item>`).join('\n')}
   </channel>
 </rss>
