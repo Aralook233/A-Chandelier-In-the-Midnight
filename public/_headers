@@ -20,7 +20,6 @@
 
 /rss.xml
   Cache-Control: public, max-age=1800
-  Cross-Origin-Resource-Policy: cross-origin
 
 /manifest.webmanifest
   Cache-Control: public, max-age=3600
