@@ -1,0 +1,665 @@
+/*
+ * 吊灯工作室（/studio/）的全部样式。单独成文件而不是写在页面的 <style> 里，
+ * 是因为 Astro 的 scoped 样式会把选择器编译成 .grid-cell[data-astro-cid-xxx]，
+ * 而网格、卷帘、混音台、采样列表这些节点是运行时由脚本建出来的，它们不带 cid 属性，
+ * 写在页面里一条都命中不了（播放头的 left 就是这么卡在 auto 上的）。
+ * 改成全局文件之后，运行时节点和模板节点在同一套选择器下。
+ *
+ * 只有 /studio/ 引这份文件，选择器不会漏到别的页面。
+ * 构成主义口径不变：直角、平涂、发丝线，阴影只有 3px 实色偏移，红只有 --motion-accent 一处。
+ */
+
+/* 工作室页面自己的令牌。深色块与 prefers-color-scheme 块要一起改，
+   这是全站三个页面共同的规矩。 */
+:root {
+  color-scheme: light;
+  --paper: #f5f0ea;
+  --paper-deep: #efe8df;
+  --ink: #1b1b1b;
+  --ink-soft: #5b564f;
+  --line: rgba(20, 20, 20, 0.22);
+  --line-strong: rgba(20, 20, 20, 0.55);
+  --panel: #f8f4ef;
+  --chip-bg: rgba(20, 20, 20, 0.05);
+  --motion-accent: #a8271b;
+
+  --roll-keys-w: 76px;
+  --roll-row-h: 30px;
+  --roll-tick-w: 11px;
+  --grid-cell-min: 26px;
+  --grid-row-h: 46px;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --paper: #17140f;
+  --paper-deep: #1f1b15;
+  --ink: #ece4d6;
+  --ink-soft: #a89c8a;
+  --line: rgba(232, 220, 200, 0.26);
+  --line-strong: rgba(232, 220, 200, 0.5);
+  --panel: #1c1812;
+  --chip-bg: rgba(255, 255, 255, 0.07);
+  --motion-accent: #d2503a;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --paper: #17140f;
+    --paper-deep: #1f1b15;
+    --ink: #ece4d6;
+    --ink-soft: #a89c8a;
+    --line: rgba(232, 220, 200, 0.26);
+    --line-strong: rgba(232, 220, 200, 0.5);
+    --panel: #1c1812;
+    --chip-bg: rgba(255, 255, 255, 0.07);
+    --motion-accent: #d2503a;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-story, 'LXGW Story', 'KaiTi', serif);
+  /* 手机端整页横向滚动由内部面板自己负责，body 不参与 */
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  min-height: 100dvh;
+  padding: 0 0 60px;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+  /* 构成主义：直角、平涂、发丝线，阴影只有 3px 实色偏移 */
+  border-radius: 0;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  padding: 9px 12px;
+  min-height: 44px;
+}
+
+/* 输入框一律 16px：iOS/夸克聚焦时会放大页面，小字号输入会触发缩放 */
+input,
+select {
+  font-size: 16px;
+}
+
+button {
+  cursor: pointer;
+  font-size: 0.86rem;
+  letter-spacing: 0.06em;
+}
+
+button:active {
+  transform: translate(2px, 2px);
+  box-shadow: none;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.brand {
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 0.82rem;
+}
+
+.wrap {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+.lede {
+  padding: 26px 0 10px;
+  border-bottom: 3px solid var(--ink);
+}
+
+.lede h1 {
+  margin: 0 0 10px;
+  font-size: clamp(1.7rem, 7.4vw, 2.5rem);
+  letter-spacing: 0.04em;
+  line-height: 1.18;
+}
+
+.lede p {
+  margin: 0;
+  max-width: 62ch;
+  color: var(--ink-soft);
+  line-height: 1.9;
+  font-size: 0.98rem;
+}
+
+.panel {
+  margin: 22px 0;
+  border: 1px solid var(--line);
+  box-shadow: 3px 3px 0 var(--chip-bg);
+}
+
+.panel > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  background: var(--paper-deep);
+}
+
+.panel > summary::-webkit-details-marker {
+  display: none;
+}
+
+.panel[open] > summary {
+  border-bottom-color: var(--line-strong);
+}
+
+.panel-body {
+  padding: 14px;
+}
+
+/* ---- 传输条 -------------------------------------------------------- */
+
+.transport {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.field span {
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.play-button {
+  min-width: 118px;
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+  box-shadow: 3px 3px 0 var(--motion-accent);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+
+.play-button[data-playing='true'] {
+  background: var(--motion-accent);
+  color: #fff;
+  border-color: var(--motion-accent);
+  box-shadow: 3px 3px 0 var(--ink);
+}
+
+.readout {
+  min-width: 62px;
+  text-align: center;
+  border: 1px solid var(--line-strong);
+  background: var(--paper-deep);
+  padding: 9px 10px;
+  font-size: 1.1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.patterns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pattern-tab {
+  padding: 8px 14px;
+  background: var(--chip-bg);
+}
+
+.pattern-tab.is-active {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+
+/* 眉标基础样式在 index.astro 的 scoped 样式里，本页拿不到，红块由动效层提供 */
+.eyebrow {
+  margin: 18px 0 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.status {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border-left: 3px solid var(--motion-accent);
+  background: var(--paper-deep);
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+  line-height: 1.7;
+  min-height: 2.6em;
+}
+
+/* ---- 步进网格 ------------------------------------------------------ */
+
+.grid-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  margin-bottom: 12px;
+}
+
+.grid-tools .field select {
+  min-width: 104px;
+}
+
+.grid-hint {
+  margin: 0;
+  max-width: 34ch;
+  font-size: 0.88rem;
+  line-height: 1.8;
+  color: var(--ink-soft);
+}
+
+.grid-scroll {
+  overflow-x: auto;
+}
+
+.grid-row {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  align-items: stretch;
+  border-bottom: 1px solid var(--line);
+}
+
+.grid-row.is-selected .grid-name {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.grid-name {
+  padding: 0 8px;
+  text-align: left;
+  min-height: var(--grid-row-h);
+  height: var(--grid-row-h);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* 关掉双击缩放，手机上「双击进卷帘」才真的能收到 dblclick */
+  touch-action: manipulation;
+}
+
+.grid-cells {
+  display: grid;
+  grid-template-columns: repeat(16, minmax(var(--grid-cell-min), 1fr));
+}
+
+.grid-cell {
+  height: var(--grid-row-h);
+  padding: 0;
+  border-width: 0 1px 0 0;
+  border-color: var(--line);
+  background: var(--paper-deep);
+  touch-action: manipulation;
+}
+
+/* 每四步一条重线：小节内的 4/4 拍感靠这个读 */
+.grid-cell:nth-child(4n + 1) {
+  border-left: 2px solid var(--line-strong);
+}
+
+.grid-cell:nth-child(-n + 4) {
+  border-top: 2px solid var(--line-strong);
+}
+
+.grid-cell.strength-1 {
+  background: var(--ink);
+}
+
+.grid-cell.strength-2 {
+  background: var(--motion-accent);
+}
+
+.grid-cell.strength-3 {
+  background: var(--motion-accent);
+  box-shadow: inset 0 0 0 3px var(--ink);
+}
+
+.grid-cell.is-current {
+  outline: 2px solid var(--motion-accent);
+  outline-offset: -2px;
+}
+
+/* ---- 钢琴卷帘 ------------------------------------------------------ */
+
+.track-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.track-tab {
+  padding: 7px 12px;
+  background: var(--chip-bg);
+  font-size: 0.8rem;
+}
+
+.track-tab.is-active {
+  background: var(--motion-accent);
+  color: #fff;
+  border-color: var(--motion-accent);
+}
+
+.roll-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  background: var(--paper-deep);
+}
+
+.roll-inner {
+  position: relative;
+  min-width: max-content;
+  padding: 0 0 4px;
+}
+
+.roll-rows {
+  display: block;
+}
+
+.roll-head {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--ink);
+  pointer-events: none;
+  /* 播放头只跟一个变量走：宽度归 CSS 算，JS 只提供 0~1 的位置比例 */
+  left: calc(var(--roll-keys-w) + (100% - var(--roll-keys-w)) * var(--roll-head, 0));
+}
+
+.roll-row {
+  display: grid;
+  grid-template-columns: var(--roll-keys-w) calc(var(--roll-tick-w) * 64);
+  height: var(--roll-row-h);
+}
+
+.roll-key {
+  padding: 0 8px;
+  height: 100%;
+  min-height: 0;
+  font-size: 0.7rem;
+  text-align: right;
+  border-width: 0 1px 1px 0;
+  background: var(--panel);
+  color: var(--ink-soft);
+  letter-spacing: 0.04em;
+}
+
+.roll-key--black {
+  background: var(--chip-bg);
+}
+
+/* :has() 在老浏览器上不成立时，只是黑键行没有底色，不影响操作 */
+.roll-row:has(.roll-key--black) {
+  --lane-bg: var(--chip-bg);
+}
+
+.roll-lane {
+  position: relative;
+  height: 100%;
+  background-color: var(--lane-bg, var(--paper));
+  /* 网格线全部用渐变画：DOM 里不需要 64 个格子节点。
+     细线的间距 = 卷帘的吸附粒度，由 JS 写在 #roll 上（--roll-snap-ticks），
+     画出来的格子和音符会停下的位置是同一套。 */
+  background-image:
+    repeating-linear-gradient(90deg, var(--line-strong) 0 1px, transparent 1px calc(var(--roll-tick-w) * 16)),
+    repeating-linear-gradient(90deg, var(--line) 0 1px, transparent 1px calc(var(--roll-tick-w) * var(--roll-snap-ticks, 4)));
+}
+
+.roll-note {
+  position: absolute;
+  top: 2px;
+  height: calc(var(--roll-row-h) - 4px);
+  min-width: 6px;
+  padding: 0;
+  border: 1px solid var(--ink);
+  background: var(--motion-accent);
+  box-shadow: 2px 2px 0 var(--ink);
+}
+
+.roll-note.strength-0 {
+  background: var(--paper-deep);
+}
+
+.roll-note.strength-1 {
+  background: color-mix(in srgb, var(--motion-accent) 60%, var(--paper));
+}
+
+.roll-note.strength-2 {
+  background: var(--motion-accent);
+}
+
+.roll-note.strength-3 {
+  background: var(--motion-accent);
+  box-shadow: 2px 2px 0 var(--ink), inset 0 0 0 2px var(--paper);
+}
+
+.roll-note.is-selected {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+}
+
+.roll-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+/* ---- 混音与采样 ---------------------------------------------------- */
+
+.mix-row {
+  display: grid;
+  grid-template-columns: 44px minmax(90px, 1fr) 108px 108px 110px auto auto auto auto auto auto;
+  gap: 6px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.mix-row.is-selected {
+  background: var(--paper-deep);
+}
+
+.mix-pick {
+  display: grid;
+  place-items: center;
+  height: 44px;
+  border: 1px solid var(--line);
+  cursor: pointer;
+  font-size: 0.78rem;
+  background: var(--panel);
+}
+
+.mix-row.is-selected .mix-pick {
+  background: var(--motion-accent);
+  color: #fff;
+  border-color: var(--motion-accent);
+}
+
+.mix-name {
+  min-width: 0;
+}
+
+.mix-static {
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  letter-spacing: 0.06em;
+}
+
+.mix-gain {
+  font-size: 0.76rem;
+  color: var(--ink-soft);
+  min-width: 44px;
+  font-variant-numeric: tabular-nums;
+}
+
+.mix-row button {
+  padding: 8px 10px;
+  font-size: 0.78rem;
+}
+
+.mix-row button[aria-pressed='true'] {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.sample-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.sample-row span {
+  flex: 1 1 220px;
+  font-size: 0.86rem;
+  color: var(--ink-soft);
+  word-break: break-all;
+}
+
+.sample-empty {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+  line-height: 1.8;
+}
+
+.notes {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+  line-height: 2;
+}
+
+.footbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 26px;
+  padding-top: 14px;
+  border-top: 3px solid var(--ink);
+  font-size: 0.84rem;
+  color: var(--ink-soft);
+}
+
+@media (min-width: 641px) {
+  :root {
+    --roll-row-h: 24px;
+    --roll-tick-w: 9px;
+    --grid-cell-min: 20px;
+  }
+
+  .wrap {
+    padding: 0 22px;
+  }
+}
+
+/* 小屏：卷帘与网格各自横向滚动，纵向控件改成两列，避免一行十几个 44px 目标 */
+@media (max-width: 760px) {
+  .mix-row {
+    grid-template-columns: 44px repeat(2, minmax(0, 1fr)) auto;
+    row-gap: 8px;
+  }
+
+  .mix-row button,
+  .mix-static,
+  .mix-gain {
+    grid-column: span 1;
+  }
+}
+
+@media (max-width: 560px) {
+  :root {
+    --roll-keys-w: 62px;
+  }
+
+  .grid-row {
+    grid-template-columns: 74px minmax(0, 1fr);
+  }
+
+  .play-button {
+    flex: 1 1 100%;
+  }
+
+  .field {
+    flex: 1 1 44%;
+  }
+
+  .field input,
+  .field select {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* 本页自己的过渡都关在这一处：全局动效层的 reduce 块管不到 scoped 选择器 */
+  button,
+  .roll-note,
+  .grid-cell,
+  .pattern-tab {
+    transition: none;
+  }
+}

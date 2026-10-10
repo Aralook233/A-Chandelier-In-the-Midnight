@@ -1,0 +1,176 @@
+---
+import '../styles/story-font.css';
+import '../styles/homepage-motion.css';
+import '../styles/studio.css';
+---
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Sawer DAW 测试版本 - Chandelier · 《吊灯》</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="alternate icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#f5f0ea" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#17140f" />
+    <meta name="description" content="一个不需要安装、不收费的浏览器音乐工坊：16 步鼓机、钢琴卷帘、采样导入与 WAV 导出。" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/">《吊灯》 · 站点</a>
+      <button type="button" id="themeToggle" class="theme-toggle">深色 / 浅色</button>
+    </header>
+
+    <main class="wrap">
+      <section class="lede">
+        <h1>Sawer DAW 测试版本</h1>
+        <p>
+          浏览器里的鼓机 + 合成器 + 钢琴卷帘。不需要安装，不收费，声音全部当场合成；
+          你自己的采样可以导进来，做完一键导出 WAV。工程自动存在这台浏览器的本地存储里。
+          测试版本：编排逻辑还会改，改坏了随时点「全部重来」。
+        </p>
+      </section>
+
+      <div class="studio" id="studio">
+        <details class="panel" open>
+          <summary>传输</summary>
+          <div class="panel-body">
+            <div class="transport">
+              <button type="button" class="play-button" id="play" data-playing="false">播放 / 停止</button>
+              <div class="readout" id="stepReadout" aria-hidden="true">1</div>
+              <label class="field"><span>速度 BPM</span><input id="tempo" type="number" min="40" max="240" step="1" value="120" /></label>
+              <label class="field"><span>摇摆</span><input id="swing" type="range" min="0" max="0.6" step="0.02" value="0" /></label>
+              <label class="field"><span>总音量</span><input id="master" type="range" min="0" max="1.3" step="0.01" value="0.9" /></label>
+              <label class="field"><span>卷帘八度</span><select id="octave"></select></label>
+              <label class="field"><span>导出小节</span><select id="loops"><option value="1">1</option><option value="2">2</option><option value="4" selected>4</option><option value="8">8</option><option value="16">16</option></select></label>
+              <button type="button" data-action="export-wav" id="exportWav">导出 WAV</button>
+              <button type="button" data-action="save-wav">保存文件</button>
+            </div>
+
+            <h2 class="eyebrow" id="patternLabel">模式</h2>
+            <div class="patterns" id="patterns" role="group" aria-labelledby="patternLabel"></div>
+            <div class="row-actions">
+              <button type="button" data-action="new-pattern">新模式</button>
+              <button type="button" data-action="clone-pattern">复制当前</button>
+              <button type="button" data-action="clear-pattern">清空模式</button>
+              <button type="button" data-action="reset-project">全部重来</button>
+            </div>
+
+            <p class="status" id="status" role="status" aria-live="polite">准备中…</p>
+          </div>
+        </details>
+
+        <details class="panel" open>
+          <summary>步进网格 · 16 步</summary>
+          <div class="panel-body">
+            <div class="grid-tools">
+              <label class="field">
+                <span>力度</span>
+                <select id="gridVelocity">
+                  <option value="64">弱</option>
+                  <option value="95" selected>中</option>
+                  <option value="127">强</option>
+                </select>
+              </label>
+              <p class="grid-hint">点格子 = 放音 / 清掉这一格；双击行名 = 拿去卷帘改音高</p>
+            </div>
+            <div class="grid-scroll">
+              <div id="stepGrid" class="grid"></div>
+            </div>
+            <p class="sample-empty">
+              网格负责排位置：一格一个音，力度用上面那个框先选好，再点就只是开和关。
+              要改音高就双击这行的名字进卷帘（手机上点卷帘里的轨道名也是一样的效果）。
+            </p>
+          </div>
+        </details>
+
+        <details class="panel" open id="rollPanel">
+          <summary>钢琴卷帘</summary>
+          <div class="panel-body">
+            <div class="track-tabs" id="trackSelect" role="group" aria-label="选择编辑的轨道"></div>
+            <div class="grid-tools">
+              <label class="field">
+                <span>自动对齐</span>
+                <select id="rollSnap">
+                  <option value="1">最细</option>
+                  <option value="2">三十二分</option>
+                  <option value="4" selected>十六分</option>
+                  <option value="8">八分</option>
+                  <option value="16">四分</option>
+                  <option value="32">二分</option>
+                </select>
+              </label>
+              <p class="grid-hint">画和拖都吸到这一档，竖线跟着它变；选中之后再点一次就是删。</p>
+            </div>
+            <div class="roll-scroll">
+              <div id="roll" class="roll-inner"></div>
+            </div>
+            <div class="roll-tools">
+              <button type="button" data-action="velocity-up">选中音符 +力度</button>
+              <button type="button" data-action="velocity-down">选中音符 -力度</button>
+              <button type="button" data-action="clear-track">清空当前轨</button>
+            </div>
+            <p class="sample-empty">
+              卷帘负责改音高：空白处按下即起音，横向拖出长度；音符上按下并拖是移动，
+              拖最右端 14px 内是改长度；点第二下、右键或长按都是删除。左侧键名点一下试听。
+            </p>
+          </div>
+        </details>
+
+        <details class="panel">
+          <summary>混音与轨道</summary>
+          <div class="panel-body">
+            <div class="row-actions">
+              <button type="button" data-action="add-drum">加鼓轨</button>
+              <button type="button" data-action="add-pitch">加旋律轨</button>
+              <button type="button" data-action="add-sample">加采样轨</button>
+            </div>
+            <div id="mixer" class="mixer"></div>
+          </div>
+        </details>
+
+        <details class="panel">
+          <summary>采样</summary>
+          <div class="panel-body">
+            <label class="field">
+              <span>导入本机文件</span>
+              <input id="sampleFiles" type="file" accept="audio/*,.wav,.mp3,.ogg,.oga,.m4a,.aac,.flac,.opus,.webm" multiple />
+            </label>
+            <div id="sampleList" class="sample-list"></div>
+          </div>
+        </details>
+
+        <details class="panel">
+          <summary>说明</summary>
+          <div class="panel-body">
+            <ul class="notes">
+              <li>空格键播放/停止；选中音符后 Delete 删除，卷帘里再点它一下也删。</li>
+              <li>声音全部由浏览器现场合成（振荡器 + 噪声），没有采样包，也不需要联网。</li>
+              <li>导出的 WAV 是离线渲染的当前模式，包含 swing、静音与独奏状态。</li>
+              <li>工程与采样都存在本机浏览器：清站点数据=一起没。采样存在 IndexedDB，工程存在 localStorage。</li>
+              <li>导出长度上限 5 分钟；一轨最多 32 条、模式最多 16 个，是给手机留的余量。</li>
+            </ul>
+          </div>
+        </details>
+
+        <div class="footbar">
+          <span>本页是纯前端功能：不上传任何音频，也不写服务器。</span>
+          <a href="/">回《吊灯》目录</a>
+        </div>
+      </div>
+    </main>
+
+    <script>
+      import { initTheme, toggleTheme } from '../utils/theme';
+      import { mountStudio } from '../utils/studio/studio-app';
+
+      initTheme();
+      document.getElementById('themeToggle')?.addEventListener('click', () => toggleTheme());
+
+      const studio = document.getElementById('studio');
+      if (studio) mountStudio(studio);
+    </script>
+  </body>
+</html>
