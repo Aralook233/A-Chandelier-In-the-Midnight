@@ -38,25 +38,6 @@ const chapters = (await getCollection('novels'))
 const currentIndex = chapters.findIndex((chapter) => chapter.id === entry.id);
 const previousChapter = chapters[currentIndex - 1];
 const nextChapter = chapters[currentIndex + 1];
-
-// 进度按字数而不是章节序号加权：占位章节（「待更新」）只有几十字，不该和
-// 正文章节各占 1/N。计数口径要和 rss.xml.js 的 plainSummary 一样先剥掉 Markdown。
-const countReadingChars = (markdown: string) =>
-  markdown
-    .replace(/```[\s\S]*?```/g, '')
-    .replace(/`[^`]*`/g, '')
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
-    .replace(/\[([^[\]]*)\]\([^)]*\)/g, '$1')
-    .replace(/^\s*>[ \t]?/gm, '')
-    .replace(/[*_~#]/g, '')
-    .replace(/\s+/g, '')
-    .length;
-const chapterLengths = chapters.map((chapter) => countReadingChars(chapter.body || ''));
-const totalReadingChars = chapterLengths.reduce((sum, value) => sum + value, 0);
-const readCharsBefore = chapterLengths
-  .slice(0, Math.max(currentIndex, 0))
-  .reduce((sum, value) => sum + value, 0);
-const currentReadingChars = chapterLengths[currentIndex] ?? 0;
 const musicDirectory = new URL('../../../public/music', import.meta.url);
 const allowedAudioExtensions = /\.(mp3|wav|m4a|ogg|aac|flac|mid|midi|opus|webm)$/i;
 let musicFiles = [];
@@ -529,10 +510,10 @@ const { Content } = await render(entry);
     </style>
   </head>
   <body>
-    <div class="reading-progress" id="readingProgress" role="progressbar" aria-label="全书阅读进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-total={totalReadingChars} data-before={readCharsBefore} data-own={currentReadingChars}>
+    <div class="reading-progress" id="readingProgress" role="progressbar" aria-label="本章阅读进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
       <span class="reading-progress-fill" id="readingProgressFill"></span>
     </div>
-    <span class="reading-progress-badge" id="readingProgressBadge" aria-hidden="true">已读全书 0%</span>
+    <span class="reading-progress-badge" id="readingProgressBadge" aria-hidden="true">已读 0%</span>
 
     <header class="topbar" aria-label="顶部导航">
       <div class="topbar-inner">
@@ -607,9 +588,6 @@ const { Content } = await render(entry);
       const progressBadge = document.getElementById('readingProgressBadge');
 
       if (progressBar && progressFill) {
-        const totalChars = Number(progressBar.dataset.total) || 0;
-        const charsBefore = Number(progressBar.dataset.before) || 0;
-        const ownChars = Number(progressBar.dataset.own) || 0;
         const article = document.querySelector('main article');
         const clamp01 = (value: number) => Math.min(Math.max(value, 0), 1);
         const scrolled = () => window.scrollY || document.documentElement.scrollTop || 0;
@@ -639,7 +617,7 @@ const { Content } = await render(entry);
         const updateProgress = () => {
           ticking = false;
           const renderedChars = blocks.reduce((sum, block) => sum + block.chars, 0);
-          let chapterRatio: number;
+          let ratio: number;
           if (renderedChars > 0) {
             const readLine = scrolled() + document.documentElement.clientHeight * 0.5;
             let passed = 0;
@@ -647,22 +625,24 @@ const { Content } = await render(entry);
               if (block.top + block.height <= readLine) passed += block.chars;
               else if (block.top < readLine) passed += (block.chars * (readLine - block.top)) / block.height;
             }
-            chapterRatio = clamp01(passed / renderedChars);
+            ratio = clamp01(passed / renderedChars);
           } else {
-            chapterRatio = pixelRatio();
+            ratio = 0;
           }
-          const ratio = totalChars > 0 ? clamp01((charsBefore + chapterRatio * ownChars) / totalChars) : chapterRatio;
+          // 像素滚动只做保底：真滑到页面底就认 100%，但它永远不会把进度拖住，
+          // 因为字数比例总是先到位（占位章甚至一打开就满）。
+          ratio = Math.max(ratio, pixelRatio());
           const percent = Math.round(ratio * 100);
           const tenths = Math.round(ratio * 1000) / 10;
           const done = ratio >= 0.999;
 
           progressFill.style.transform = `scaleX(${ratio.toFixed(4)})`;
           progressBar.setAttribute('aria-valuenow', String(percent));
-          progressBar.setAttribute('aria-valuetext', done ? '已读完全书' : `全书已读 ${tenths}%`);
+          progressBar.setAttribute('aria-valuetext', done ? '本章读完' : `本章已读 ${tenths}%`);
 
           if (progressBadge) {
-            progressBadge.textContent = done ? '全书读完' : `已读全书 ${tenths}%`;
-            progressBadge.classList.toggle('is-visible', chapterRatio > 0.01);
+            progressBadge.textContent = done ? '本章读完' : `已读 ${tenths}%`;
+            progressBadge.classList.toggle('is-visible', ratio > 0.01);
             progressBadge.classList.toggle('is-complete', done);
           }
         };
