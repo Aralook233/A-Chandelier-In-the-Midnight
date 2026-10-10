@@ -4,11 +4,13 @@
 
 import {
   MAX_OCTAVE,
+  MAX_PATTERNS,
+  MAX_TRACKS,
   MIN_OCTAVE,
   PPQ,
   RESOLUTION,
-  ROLL_SNAPS,
   defaultProject,
+  rollSnapTicks,
   starterPattern,
   type Note,
   type Pattern,
@@ -18,8 +20,6 @@ import {
 
 export const PROJECT_KEY = 'chandelier-studio-project';
 
-const MAX_TRACKS = 32;
-const MAX_PATTERNS = 16;
 const MAX_NOTES = 512;
 
 const number = (value: unknown, fallback: number, min: number, max: number): number => {
@@ -32,17 +32,6 @@ const integer = (value: unknown, fallback: number, min: number, max: number): nu
   Math.round(number(value, fallback, min, max));
 
 const flag = (value: unknown): boolean => value === true;
-
-// 吸附粒度只认 ROLL_SNAPS 这几档（下拉框里也是这几项）。别的值——包括手改存档来的 3、5——
-// 都归到最近的一档，否则下拉框一个选项都选不中，显示成空白。
-const snap = (value: unknown): number => {
-  const candidate = integer(value, PPQ, ROLL_SNAPS[0], ROLL_SNAPS[ROLL_SNAPS.length - 1]);
-  let best: number = PPQ;
-  for (const option of ROLL_SNAPS) {
-    if (Math.abs(option - candidate) < Math.abs(best - candidate)) best = option;
-  }
-  return best;
-};
 
 const text = (value: unknown, fallback: string, max = 40): string => {
   if (typeof value !== 'string') return fallback;
@@ -127,7 +116,7 @@ export function sanitizeProject(value: unknown): Project | null {
     masterGain: number(raw.masterGain, 0.9, 0, 1.3),
     // 老存档里没有这个字段，读不到就回到默认的「中」。
     gridVelocity: integer(raw.gridVelocity, 95, 1, 127),
-    rollSnap: snap(raw.rollSnap),
+    rollSnap: rollSnapTicks(raw.rollSnap),
   };
 }
 

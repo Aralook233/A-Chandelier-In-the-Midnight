@@ -13,16 +13,19 @@ import { createTransport, type Transport } from './scheduler';
 import { createSamples } from './samples';
 import { createRoll } from './piano-roll';
 import { renderWav } from './wav-export';
-import { cellStrength, clearTrack, currentPattern, toggleCell, trackNotes } from './notes';
+import { clearTrack, currentPattern, toggleCell, trackNotes, trackStrengths } from './notes';
 import { loadProject, saveProject, clearProject } from './store';
 import {
   DRUM_VOICES,
   MAX_OCTAVE,
+  MAX_PATTERNS,
+  MAX_TRACKS,
   MIN_OCTAVE,
   STEPS,
   SYNTH_VOICES,
   defaultProject,
   newId,
+  rollSnapTicks,
   type DrumKind,
   type SynthKind,
   type Track,
@@ -31,7 +34,6 @@ import {
 } from './types';
 
 const SAVE_DEBOUNCE_MS = 500;
-const MAX_TRACKS = 32;
 
 const need = <T extends HTMLElement>(root: ParentNode, selector: string): T | null =>
   root.querySelector<T>(selector);
@@ -145,11 +147,13 @@ export function mountStudio(root: HTMLElement): void {
   const renderGrid = () => {
     gridHost.innerHTML = project.tracks
       .map((track) => {
-        const cells = Array.from(
-          { length: STEPS },
-          (_, step) =>
-            `<button type="button" class="grid-cell strength-${cellStrength(project, track.id, step)}" data-step="${step}" data-cell="${escapeHtml(track.id)}:${step}" aria-pressed="${cellStrength(project, track.id, step) > 0}" aria-label="${escapeHtml(track.name)} 第 ${step + 1} 步"></button>`
-        ).join('');
+        const strengths = trackStrengths(project, track.id);
+        const cells = strengths
+          .map(
+            (level, step) =>
+              `<button type="button" class="grid-cell strength-${level}" data-step="${step}" data-cell="${escapeHtml(track.id)}:${step}" aria-pressed="${level > 0}" aria-label="${escapeHtml(track.name)} 第 ${step + 1} 步"></button>`
+          )
+          .join('');
         return `<div class="grid-row${track.id === selectedTrackId ? ' is-selected' : ''}" data-row="${escapeHtml(track.id)}">` +
           `<button type="button" class="grid-name" data-audition="${escapeHtml(track.id)}" title="单击试听 · 双击拿去卷帘改音高">${escapeHtml(track.name)}</button>` +
           `<div class="grid-cells">${cells}</div>` +
@@ -423,8 +427,8 @@ export function mountStudio(root: HTMLElement): void {
   }
 
   function newPattern(clone: boolean): void {
-    if (project.patterns.length >= 16) {
-      announce('模式上限 16 个');
+    if (project.patterns.length >= MAX_PATTERNS) {
+      announce(`模式上限 ${MAX_PATTERNS} 个`);
       return;
     }
     const pattern = {
@@ -769,7 +773,7 @@ export function mountStudio(root: HTMLElement): void {
 
   // 吸附同理：改的是「接下来落在哪」，已经画歪的音要靠拖它一下自动吸正，不批量动数据。
   rollSnapInput?.addEventListener('change', () => {
-    project.rollSnap = Math.max(1, Math.min(32, Math.round(Number(rollSnapInput.value) || 4)));
+    project.rollSnap = rollSnapTicks(rollSnapInput.value);
     roll.render();
     scheduleSave();
   });

@@ -90,12 +90,19 @@ export function toggleCell(project: Project, trackId: string, step: number, defa
   return 'added';
 }
 
-// 卷帘可能往同一格塞了好几个音，取最响的那个决定这一格的颜色；
-// 但只要有音就至少给一档，否极轻的那格会画成空的，看着像没放进去。
-export function cellStrength(project: Project, trackId: string, step: number): 0 | 1 | 2 | 3 {
-  const notes = stepNotes(project, trackId, step);
-  if (notes.length === 0) return 0;
-  return Math.max(1, velocityLevel(Math.max(...notes.map((note) => note.velocity)))) as 1 | 2 | 3;
+// 网格一行的 16 格亮度，一次扫完全模式算好。
+// 原来 renderGrid 每格都过滤一遍整个模式的音符：32 轨 × 16 格 × 每格两次（class 和
+// aria-pressed）× 512 个音符 ≈ 五十万次比较，全在每次点击后的重绘里跑，手机上点一下
+// 要等一下才亮。卷帘可能往同一格塞好几个音，取最响的那个决定颜色；
+// 但只要有音就至少给一档，否则极轻的那格会画成空的，看着像没放进去。
+export function trackStrengths(project: Project, trackId: string): (0 | 1 | 2 | 3)[] {
+  const levels = Array.from({ length: STEPS }, () => 0 as 0 | 1 | 2 | 3);
+  for (const note of currentPattern(project).notes) {
+    if (note.trackId !== trackId) continue;
+    const step = stepOf(note);
+    if (step < 0 || step >= STEPS) continue;
+    const level = Math.max(1, velocityLevel(note.velocity)) as 1 | 2 | 3;
+    if (level > levels[step]) levels[step] = level;
+  }
+  return levels;
 }
-
-export const barSteps = (): number => STEPS;

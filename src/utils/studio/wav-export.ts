@@ -16,8 +16,6 @@ const TAIL_SECONDS = 1.6;
 const MAX_LOOPS = 32;
 const MAX_SCHEDULED_NOTES = 20000;
 
-export type ExportError = { message: string };
-
 export function exportLimits(project: Project, loops: number): { ok: true; seconds: number } | { ok: false; message: string } {
   if (!Number.isInteger(loops) || loops < 1 || loops > MAX_LOOPS) {
     return { ok: false, message: `循环次数只能是 1 到 ${MAX_LOOPS}` };
@@ -119,12 +117,4 @@ export async function renderWav(
 
   const rendered = await offline.startRendering();
   return { blob: encodeWav(rendered), seconds: limit.seconds };
-}
-
-// 采样解码要绑到具体的上下文上，所以这里把 samples 的 prepare 接进来。
-export function makeSamplePreparer(
-  prepare: (context: BaseAudioContext, ids: string[]) => Promise<void>,
-  bufferFor: (context: BaseAudioContext, id: string) => AudioBuffer | undefined
-) {
-  return { prepare, bufferFor };
 }

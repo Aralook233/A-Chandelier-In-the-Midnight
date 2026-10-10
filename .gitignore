@@ -41,3 +41,6 @@ public/music/*
 # 字体源文件与切片中间产物
 *.ttf
 lxgw_face_*
+
+# Python 字节码缓存（tools/*.py 跑出来的，删了会自动再生）
+__pycache__/

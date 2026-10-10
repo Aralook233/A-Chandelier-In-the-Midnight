@@ -10,7 +10,7 @@
 // 指针事件统一处理鼠标/触屏/手写笔；setPointerCapture 让拖出网格后仍能继续跟踪。
 
 import { escapeHtml } from '../sanitize';
-import { PPQ, RESOLUTION, noteLabel, type Project } from './types';
+import { PPQ, RESOLUTION, noteLabel, rollSnapTicks, type Project } from './types';
 import { addNote, currentPattern, moveNote, removeNote, resizeNote, trackNotes, velocityLevel } from './notes';
 
 const ROLL_ROWS = 25;
@@ -62,7 +62,7 @@ export function createRoll(options: RollOptions): Roll {
   } | null = null;
   let gridSignature = '';
 
-  const snap = (state: RollState) => Math.max(1, Math.min(RESOLUTION, Math.round(state.project.rollSnap) || PPQ));
+  const snap = (state: RollState) => rollSnapTicks(state.project.rollSnap);
 
   // 网格线全部用 repeating-linear-gradient 画，DOM 里只有 25 行 × 两个节点。
   // 每行都是一个 .roll-lane，于是「命中哪一行」由事件目标自己说明，
@@ -187,8 +187,8 @@ export function createRoll(options: RollOptions): Roll {
     if (!drag) return;
     const state = options.state();
     const hitArea = point(event);
-    if (!hitArea) return;
     // 跨格才算挪动，同一格里的 1px 抖动还是「点了一下」——不然手机上根本删不掉。
+    // 滑出网格（落到左侧琴键列或卷帘外面）也算挪动：松手时不能再走「再点一次就删」。
     if (!hitArea) {
       drag.moved = true;
       return;

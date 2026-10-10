@@ -8,6 +8,21 @@ export const RESOLUTION = STEPS * PPQ;
 // 卷帘可选的吸附粒度（tick），和 studio.astro 里「自动对齐」下拉框的取值一一对应。
 // 存档里读到表外的值（手改的）会被归到最近一档，否则下拉框会一个都选不中。
 export const ROLL_SNAPS = [1, 2, 4, 8, 16, 32] as const;
+// 吸附档位归一：表外的值（手改的存档、以后加的下拉框选项）落到最近的一档。
+// 存档校验和「自动对齐」下拉框都走这里，免得两边各写一套上下限。
+export const rollSnapTicks = (value: unknown): number => {
+  const raw = Number(value);
+  const target = Number.isFinite(raw) ? Math.round(raw) : PPQ;
+  let best: number = PPQ;
+  for (const option of ROLL_SNAPS) {
+    if (Math.abs(option - target) < Math.abs(best - target)) best = option;
+  }
+  return best;
+};
+// 轨道与模式的上限：建轨/建模式的按钮按这个报错，存档校验按这个裁剪，
+// 两边必须是同一个数，否则第 33 条轨会被静悄悄吞掉。
+export const MAX_TRACKS = 32;
+export const MAX_PATTERNS = 16;
 export const MIN_OCTAVE = 0;
 export const MAX_OCTAVE = 8;
 
