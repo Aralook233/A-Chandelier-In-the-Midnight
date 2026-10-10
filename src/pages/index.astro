@@ -831,6 +831,48 @@ try {
         text-transform: uppercase;
       }
 
+      /* 顶部入口和底部「支持我们」都跟着本页已有的胶囊语言走，
+         免得一个链接看起来像从别的站点贴过来的。 */
+      .topbar-link {
+        display: inline-flex;
+        align-items: center;
+        margin-right: 10px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: rgba(var(--tint-rgb), 0.2);
+        color: var(--ink);
+        padding: 8px 14px;
+        font-size: 0.78rem;
+        letter-spacing: 0.08em;
+        white-space: nowrap;
+      }
+
+      .support-strip {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px 14px;
+        margin-top: 4px;
+        padding: 18px 0 4px;
+        border-top: 1px solid var(--line);
+        color: var(--ink-soft);
+        font-size: 0.78rem;
+        line-height: 1.6;
+      }
+
+      .support-strip a {
+        display: inline-flex;
+        align-items: center;
+        min-height: 44px;
+        padding: 10px 16px;
+        border: 1px solid var(--line-strong);
+        border-radius: 999px;
+        background: var(--btn-bg);
+        color: var(--ink);
+        letter-spacing: 0.08em;
+        white-space: nowrap;
+      }
+
       @media (max-width: 1100px) {
         .app-shell {
           gap: 22px;
@@ -1010,7 +1052,8 @@ try {
         }
 
         .auth-button,
-        .theme-toggle {
+        .theme-toggle,
+        .topbar-link {
           padding: 10px 12px;
           font-size: 0.78rem;
         }
@@ -1038,6 +1081,7 @@ try {
   <body>
     <header class="topbar" aria-label="顶部导航">
       <div class="topbar-inner">
+        <a class="topbar-link" href="/studio/">音乐工作室</a>
         <button class="theme-toggle" id="themeToggle" type="button" data-theme-toggle aria-pressed="false">深色</button>
         <span class="account-chip auth-button" id="accountChip" hidden></span>
         <button class="auth-button" id="openAuthButton" type="button">登录 / 注册</button>
@@ -1178,6 +1222,11 @@ try {
 
           <div class="discussion-status" id="discussionStatus" aria-live="polite"></div>
           <div class="discussion-list" id="discussionList"></div>
+        </section>
+
+        <section class="support-strip" aria-label="支持我们">
+          <span>说句实话：给联合国捐款比给我们有用。</span>
+          <a href="https://www.unonline.org/zh/about-us/how-to-donate-to-the-un-system.html" target="_blank" rel="noopener noreferrer">支持我们</a>
         </section>
       </main>
     </div>
