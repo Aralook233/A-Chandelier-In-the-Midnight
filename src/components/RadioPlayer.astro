@@ -684,6 +684,15 @@ const { musicFiles, caption = '电台' } = Astro.props;
     .radio-btn {
       min-height: 44px;
     }
+
+    /* 切换波形/频谱的按钮浮在示波窗右下角，原来只有 19px 高，手指一碰就变成滚动，
+       频谱模式根本切不进去。触屏上给它一个够按的方块。 */
+    .radio-scope-toggle {
+      min-height: 40px;
+      min-width: 56px;
+      padding: 8px 12px;
+      font-size: 0.72rem;
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -702,6 +711,8 @@ const { musicFiles, caption = '电台' } = Astro.props;
 </style>
 
 <script>
+  import { createMidiPlayer, isMidiName, parseMidi, type MidiPlayer, type MidiSong } from '../utils/midi';
+
   const shell = document.querySelector<HTMLElement>('[data-shell]');
   const audio = document.getElementById('musicPlayer') as HTMLAudioElement | null;
   const select = document.getElementById('musicSelect') as HTMLSelectElement | null;
@@ -738,6 +749,8 @@ const { musicFiles, caption = '电台' } = Astro.props;
     let analyser: AnalyserNode | null = null;
     let timeData: Uint8Array | null = null;
     let freqData: Uint8Array | null = null;
+    let midiGain: GainNode | null = null;
+    let midiTape: { player: MidiPlayer; playing: boolean } | null = null;
     let barsMode = false;
     let seeking = false;
     let rafId = 0;
@@ -761,12 +774,18 @@ const { musicFiles, caption = '电台' } = Astro.props;
         timeData = new Uint8Array(analyser.fftSize);
         freqData = new Uint8Array(analyser.frequencyBinCount);
         audioContext.createMediaElementSource(audio).connect(toneFilter);
+        // MIDI 不经过 audio 元素：合成器直接挂到同一条 TONE→分析链上，
+        // 所以示波窗对磁带和 MIDI 是同一套读数。
+        midiGain = audioContext.createGain();
+        midiGain.gain.value = audio.volume;
+        midiGain.connect(toneFilter);
         toneFilter.connect(analyser);
         analyser.connect(audioContext.destination);
       } catch {
         audioContext = null;
         toneFilter = null;
         analyser = null;
+        midiGain = null;
       }
     }
 
@@ -786,13 +805,77 @@ const { musicFiles, caption = '电台' } = Astro.props;
       }
     }
 
+    // 磁带（audio 元素）和 MIDI（WebAudio 合成）共用一套指针、灯和滑条。
+    const sourcePlaying = () => (midiTape ? midiTape.playing : !audio.paused && !audio.ended);
+    const sourcePosition = () => (midiTape ? midiTape.player.position() : audio.currentTime);
+    const sourceDuration = () =>
+      midiTape ? midiTape.player.duration : Number.isFinite(audio.duration) ? audio.duration : 0;
+
+    function endMidi() {
+      if (!midiTape) return;
+      midiTape.player.pause();
+      midiTape = null;
+    }
+
     function syncProgress() {
-      const duration = Number.isFinite(audio.duration) ? audio.duration : 0;
-      const ratio = duration > 0 ? Math.min(Math.max(audio.currentTime / duration, 0), 1) : 0;
+      const duration = sourceDuration();
+      const position = sourcePosition();
+      const ratio = duration > 0 ? Math.min(Math.max(position / duration, 0), 1) : 0;
       if (needle) needle.style.left = `${(ratio * 100).toFixed(3)}%`;
       if (knob) knob.style.transform = `rotate(${(-120 + ratio * 240).toFixed(2)}deg)`;
       if (tune && !seeking) tune.value = String(Math.round(ratio * 1000));
-      if (timeLabel) timeLabel.textContent = `${clock(audio.currentTime)} / ${clock(duration)}`;
+      if (timeLabel) timeLabel.textContent = `${clock(position)} / ${clock(duration)}`;
+    }
+
+    // 频谱柱的高度按「每根柱占多少个频点、取其中最大值」来算，两个数组都复用，
+    // 免得 60fps 下每帧都在分配。
+    const barCount = 26;
+    const barPeaks = new Uint8Array(barCount);
+    const goertzelWindow = 256;
+    let goertzelCoefficients: Float32Array | null = null;
+
+    // 有些内核的 FFT 分支整帧返回全零（时域那边却有信号），这时退回在时域样本上
+    // 跑 26 个等间隔 Goertzel 带通：仍是频谱，只是分辨率低，至少示波窗不会是空的。
+    function goertzelPeaks(): Uint8Array {
+      if (!analyser || !timeData) return barPeaks;
+      if (!goertzelCoefficients) {
+        goertzelCoefficients = new Float32Array(barCount);
+        for (let index = 0; index < barCount; index += 1) {
+          goertzelCoefficients[index] = 2 * Math.cos((2 * Math.PI * (2 + index * 4)) / goertzelWindow);
+        }
+      }
+      analyser.getByteTimeDomainData(timeData);
+      const step = Math.max(Math.floor(timeData.length / goertzelWindow), 1);
+      for (let index = 0; index < barCount; index += 1) {
+        const coefficient = goertzelCoefficients[index];
+        let s1 = 0;
+        let s2 = 0;
+        for (let sample = 0; sample < goertzelWindow; sample += 1) {
+          const value = ((timeData[sample * step] ?? 128) - 128) / 128;
+          const s0 = value + coefficient * s1 - s2;
+          s2 = s1;
+          s1 = s0;
+        }
+        const magnitude = Math.sqrt(Math.max(s1 * s1 + s2 * s2 - coefficient * s1 * s2, 0)) / (goertzelWindow / 2);
+        barPeaks[index] = Math.min(255, Math.round(magnitude * 200));
+      }
+      return barPeaks;
+    }
+
+    function collectBarPeaks(): Uint8Array {
+      if (!analyser || !freqData) return barPeaks;
+      analyser.getByteFrequencyData(freqData);
+      const span = Math.max(Math.floor(freqData.length / 2 / barCount), 1);
+      let loudest = 0;
+      for (let index = 0; index < barCount; index += 1) {
+        let peak = 0;
+        for (let scan = 0; scan < span; scan += 1) {
+          peak = Math.max(peak, freqData[index * span + scan] || 0);
+        }
+        barPeaks[index] = peak;
+        loudest = Math.max(loudest, peak);
+      }
+      return loudest > 0 ? barPeaks : goertzelPeaks();
     }
 
     function drawScope() {
@@ -826,21 +909,15 @@ const { musicFiles, caption = '电台' } = Astro.props;
       paint.lineTo(width, height / 2);
       paint.stroke();
 
-      const live = !audio.paused && !audio.ended && analyser && timeData && freqData;
+      const live = sourcePlaying() && analyser && timeData && freqData;
       if (!live || !analyser || !timeData || !freqData) return;
 
       if (barsMode) {
-        analyser.getByteFrequencyData(freqData);
-        const bars = 26;
-        const span = Math.max(Math.floor(freqData.length / 2 / bars), 1);
-        const slot = width / bars;
+        const peaks = collectBarPeaks();
+        const slot = width / barCount;
         paint.fillStyle = inkColor;
-        for (let index = 0; index < bars; index += 1) {
-          let peak = 0;
-          for (let scan = 0; scan < span; scan += 1) {
-            peak = Math.max(peak, freqData[index * span + scan] || 0);
-          }
-          const barHeight = Math.max(2 * dpr, (peak / 255) * height * 0.9);
+        for (let index = 0; index < barCount; index += 1) {
+          const barHeight = Math.max(2 * dpr, (peaks[index] / 255) * height * 0.9);
           paint.fillRect(Math.floor(index * slot + slot * 0.18), Math.floor(height - barHeight), Math.ceil(slot * 0.64), Math.ceil(barHeight));
         }
       } else {
@@ -871,24 +948,38 @@ const { musicFiles, caption = '电台' } = Astro.props;
 
     function startLoop() {
       stopLoop();
+      // MIDI 没有 media 元素的 ended 事件，进度到头就自己收尾，别让循环空转。
+      const finished = () => {
+        if (!midiTape?.playing) return false;
+        if (midiTape.player.position() < midiTape.player.duration) return false;
+        endMidi();
+        stopLoop();
+        syncState();
+        syncProgress();
+        drawScope();
+        return true;
+      };
+
       if (reducedMotion?.matches) {
         drawScope();
         intervalId = window.setInterval(() => {
+          if (finished()) return;
           drawScope();
           syncProgress();
         }, 240);
       } else {
-        const step = () => {
+        const frame = () => {
+          if (step()) return;
           drawScope();
           syncProgress();
-          rafId = requestAnimationFrame(step);
+          rafId = requestAnimationFrame(frame);
         };
-        rafId = requestAnimationFrame(step);
+        rafId = requestAnimationFrame(frame);
       }
     }
 
     function syncState() {
-      const playing = !audio.paused && !audio.ended;
+      const playing = sourcePlaying();
       shell.classList.toggle('is-playing', playing);
       shell.dataset.trace = barsMode ? 'bars' : 'wave';
       if (playBtn) {
@@ -902,6 +993,11 @@ const { musicFiles, caption = '电台' } = Astro.props;
     }
 
     function useTape(value: string, label?: string) {
+      if (value && isMidiName(tapeName(value))) {
+        void takeMidi(value, label || tapeName(value));
+        return;
+      }
+      endMidi();
       currentTape = value;
       tapeTitle = value ? label || tapeName(value) : '未接入节目';
       if (!value) {
@@ -917,6 +1013,42 @@ const { musicFiles, caption = '电台' } = Astro.props;
       syncState();
       syncProgress();
       drawScope();
+    }
+
+    // source 可以是站内磁带地址（走 fetch），也可以是本机选中的 File（直接读，
+    // 省一次 blob fetch，也不依赖 CSP 对 blob: 的取法）。
+    async function takeMidi(source: string | File, label: string) {
+      buildGraph();
+      let song: MidiSong | null = null;
+      if (audioContext && midiGain) {
+        try {
+          const bytes = typeof source === 'string' ? await (await fetch(source)).arrayBuffer() : await source.arrayBuffer();
+          song = parseMidi(bytes);
+        } catch {
+          song = null;
+        }
+      }
+      if (!song || !audioContext || !midiGain) {
+        endMidi();
+        currentTape = '';
+        tapeTitle = song ? '这台内核放不了 MIDI' : `读不出 MIDI：${label}`;
+        syncState();
+        syncProgress();
+        drawScope();
+        return;
+      }
+      audio.pause();
+      endMidi();
+      // AudioContext 只有在手势之后才会真的走时，被挂起时先叫它起来。
+      if (audioContext.state === 'suspended') void audioContext.resume().catch(() => {});
+      const player = createMidiPlayer(audioContext, midiGain, song);
+      player.start(0);
+      midiTape = { player, playing: true };
+      currentTape = typeof source === 'string' ? source : `midi:${label}`;
+      tapeTitle = `MIDI：${label}`;
+      syncState();
+      syncProgress();
+      startLoop();
     }
 
     audio.volume = volumeInput ? Number(volumeInput.value) / 100 : 0.8;
@@ -946,6 +1078,22 @@ const { musicFiles, caption = '电台' } = Astro.props;
 
     playBtn?.addEventListener('click', () => {
       buildGraph();
+      if (midiTape) {
+        if (midiTape.playing) {
+          midiTape.player.pause();
+          midiTape.playing = false;
+          stopLoop();
+        } else {
+          if (audioContext && audioContext.state === 'suspended') void audioContext.resume().catch(() => {});
+          midiTape.player.start();
+          midiTape.playing = true;
+          startLoop();
+        }
+        syncState();
+        syncProgress();
+        drawScope();
+        return;
+      }
       if (audio.paused) {
         if (!audio.currentSrc && select?.value) useTape(select.value);
         else void audio.play().catch(() => {});
@@ -955,8 +1103,15 @@ const { musicFiles, caption = '电台' } = Astro.props;
     });
 
     stopBtn?.addEventListener('click', () => {
-      audio.pause();
-      audio.currentTime = 0;
+      if (midiTape) {
+        midiTape.player.pause();
+        midiTape.player.seek(0);
+        midiTape.playing = false;
+        stopLoop();
+      } else {
+        audio.pause();
+        audio.currentTime = 0;
+      }
       syncState();
       syncProgress();
       drawScope();
@@ -977,6 +1132,7 @@ const { musicFiles, caption = '电台' } = Astro.props;
 
     volumeInput?.addEventListener('input', () => {
       audio.volume = Number(volumeInput.value) / 100;
+      if (midiGain) midiGain.gain.value = audio.volume;
     });
 
     toneInput?.addEventListener('input', () => {
@@ -985,8 +1141,12 @@ const { musicFiles, caption = '电台' } = Astro.props;
 
     tune?.addEventListener('input', () => {
       seeking = true;
-      const duration = Number.isFinite(audio.duration) ? audio.duration : 0;
-      if (duration > 0) audio.currentTime = (Number(tune.value) / 1000) * duration;
+      const duration = sourceDuration();
+      if (duration > 0) {
+        const target = (Number(tune.value) / 1000) * duration;
+        if (midiTape) midiTape.player.seek(target);
+        else audio.currentTime = target;
+      }
       syncProgress();
     });
     tune?.addEventListener('change', () => {
@@ -1003,8 +1163,14 @@ const { musicFiles, caption = '电台' } = Astro.props;
     upload?.addEventListener('change', () => {
       const file = upload.files && upload.files[0];
       if (!file) return;
-      const objectUrl = URL.createObjectURL(file);
       const label = `本地：${file.name}`;
+      // blob: 地址没有扩展名，MIDI 直接把 File 交给解析器，不进磁带下拉。
+      if (isMidiName(file.name)) {
+        if (select) select.value = '';
+        void takeMidi(file, label);
+        return;
+      }
+      const objectUrl = URL.createObjectURL(file);
       if (select) {
         select.appendChild(new Option(label, objectUrl, false, true));
         select.value = objectUrl;

@@ -38,6 +38,25 @@ const chapters = (await getCollection('novels'))
 const currentIndex = chapters.findIndex((chapter) => chapter.id === entry.id);
 const previousChapter = chapters[currentIndex - 1];
 const nextChapter = chapters[currentIndex + 1];
+
+// 进度按字数而不是章节序号加权：占位章节（「待更新」）只有几十字，不该和
+// 正文章节各占 1/N。计数口径要和 rss.xml.js 的 plainSummary 一样先剥掉 Markdown。
+const countReadingChars = (markdown: string) =>
+  markdown
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/`[^`]*`/g, '')
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+    .replace(/\[([^[\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/^\s*>[ \t]?/gm, '')
+    .replace(/[*_~#]/g, '')
+    .replace(/\s+/g, '')
+    .length;
+const chapterLengths = chapters.map((chapter) => countReadingChars(chapter.body || ''));
+const totalReadingChars = chapterLengths.reduce((sum, value) => sum + value, 0);
+const readCharsBefore = chapterLengths
+  .slice(0, Math.max(currentIndex, 0))
+  .reduce((sum, value) => sum + value, 0);
+const currentReadingChars = chapterLengths[currentIndex] ?? 0;
 const musicDirectory = new URL('../../../public/music', import.meta.url);
 const allowedAudioExtensions = /\.(mp3|wav|m4a|ogg|aac|flac|mid|midi|opus|webm)$/i;
 let musicFiles = [];
@@ -510,10 +529,10 @@ const { Content } = await render(entry);
     </style>
   </head>
   <body>
-    <div class="reading-progress" id="readingProgress" role="progressbar" aria-label="阅读进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+    <div class="reading-progress" id="readingProgress" role="progressbar" aria-label="全书阅读进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-total={totalReadingChars} data-before={readCharsBefore} data-own={currentReadingChars}>
       <span class="reading-progress-fill" id="readingProgressFill"></span>
     </div>
-    <span class="reading-progress-badge" id="readingProgressBadge" aria-hidden="true">已读 0%</span>
+    <span class="reading-progress-badge" id="readingProgressBadge" aria-hidden="true">已读全书 0%</span>
 
     <header class="topbar" aria-label="顶部导航">
       <div class="topbar-inner">
@@ -588,23 +607,62 @@ const { Content } = await render(entry);
       const progressBadge = document.getElementById('readingProgressBadge');
 
       if (progressBar && progressFill) {
+        const totalChars = Number(progressBar.dataset.total) || 0;
+        const charsBefore = Number(progressBar.dataset.before) || 0;
+        const ownChars = Number(progressBar.dataset.own) || 0;
+        const article = document.querySelector('main article');
+        const clamp01 = (value: number) => Math.min(Math.max(value, 0), 1);
+        const scrolled = () => window.scrollY || document.documentElement.scrollTop || 0;
+        const pixelRatio = () => {
+          const scrollable = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+          return scrollable > 0 ? clamp01(scrolled() / scrollable) : 0;
+        };
+
+        type TextBlock = { chars: number; top: number; height: number };
+        let blocks: TextBlock[] = [];
+
+        // 记账单位是「滚过的字数」：每个正文块存它的字数和版面上的位置，
+        // 阅读线取视口中线，被线切到的块按比例计。字号/行宽变了只要重新量位置。
+        const measure = () => {
+          blocks = article ? [...article.children].map((node) => {
+            const box = node.getBoundingClientRect();
+            return {
+              chars: (node.textContent || '').replace(/\s+/g, '').length,
+              top: box.top + scrolled(),
+              height: Math.max(box.height, 1),
+            };
+          }) : [];
+        };
+
         let ticking = false;
 
         const updateProgress = () => {
           ticking = false;
-          const doc = document.documentElement;
-          const scrollable = doc.scrollHeight - doc.clientHeight;
-          const ratio = scrollable > 0 ? Math.min(Math.max((window.scrollY || doc.scrollTop || 0) / scrollable, 0), 1) : 0;
+          const renderedChars = blocks.reduce((sum, block) => sum + block.chars, 0);
+          let chapterRatio: number;
+          if (renderedChars > 0) {
+            const readLine = scrolled() + document.documentElement.clientHeight * 0.5;
+            let passed = 0;
+            for (const block of blocks) {
+              if (block.top + block.height <= readLine) passed += block.chars;
+              else if (block.top < readLine) passed += (block.chars * (readLine - block.top)) / block.height;
+            }
+            chapterRatio = clamp01(passed / renderedChars);
+          } else {
+            chapterRatio = pixelRatio();
+          }
+          const ratio = totalChars > 0 ? clamp01((charsBefore + chapterRatio * ownChars) / totalChars) : chapterRatio;
           const percent = Math.round(ratio * 100);
-          const done = percent >= 99;
+          const tenths = Math.round(ratio * 1000) / 10;
+          const done = ratio >= 0.999;
 
           progressFill.style.transform = `scaleX(${ratio.toFixed(4)})`;
           progressBar.setAttribute('aria-valuenow', String(percent));
-          progressBar.setAttribute('aria-valuetext', done ? '已读完全章' : `已读 ${percent}%`);
+          progressBar.setAttribute('aria-valuetext', done ? '已读完全书' : `全书已读 ${tenths}%`);
 
           if (progressBadge) {
-            progressBadge.textContent = done ? '本章读完' : `已读 ${percent}%`;
-            progressBadge.classList.toggle('is-visible', ratio > 0.01);
+            progressBadge.textContent = done ? '全书读完' : `已读全书 ${tenths}%`;
+            progressBadge.classList.toggle('is-visible', chapterRatio > 0.01);
             progressBadge.classList.toggle('is-complete', done);
           }
         };
@@ -615,12 +673,21 @@ const { Content } = await render(entry);
           requestAnimationFrame(updateProgress);
         };
 
+        const remeasure = () => {
+          measure();
+          updateProgress();
+        };
+
+        measure();
+        updateProgress();
+
         window.addEventListener('scroll', requestUpdate, { passive: true });
-        window.addEventListener('resize', requestUpdate);
+        window.addEventListener('resize', remeasure);
+        window.addEventListener('load', remeasure);
+        document.fonts?.ready.then(remeasure).catch(() => {});
         document.addEventListener('visibilitychange', () => {
           if (!document.hidden) requestUpdate();
         });
-        requestAnimationFrame(updateProgress);
       }
     </script>
   </body>
