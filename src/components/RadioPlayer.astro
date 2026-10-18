@@ -1352,6 +1352,9 @@ const { caption = '电台' } = Astro.props;
     // 货架有 449 个，全塞进下拉没人滚得动：只列成排的（≥2 首），最多 40 个，
     // 剩下的一行「另有 N 项 · M 首」把账补平；落单的那位用检索框找——检索也匹配货架名。
     // 已经选中的那一项一定留在下拉里（哪怕别的筛选让它变成 0 首），不然用户的筛选会被悄悄改掉。
+    // listZeros 给风格那一格用：全库就 15 个标签，摊不满一屏也认了，因为「这一排只有一种风格」
+    // 是常态（449 个归类里 416 个如此），只列活的那一格看着像下拉坏了。0 首的行标灰不可选，
+    // 免得挑出一个空列表；它们不进「全部」那行的数，加起来照样等于眼前的列表。
     function fillFacet(
       select: HTMLSelectElement | null,
       skip: string,
@@ -1359,6 +1362,7 @@ const { caption = '电台' } = Astro.props;
       allLabel: string,
       emptyLabel: string,
       listSingles: boolean,
+      listZeros = false,
     ) {
       if (!select) return;
       const wanted = select.value;
@@ -1373,18 +1377,30 @@ const { caption = '电台' } = Astro.props;
       const hiddenShelves = ranked.filter(([key]) => !listed.has(key)).length;
       const hiddenTracks = total - ranked.filter(([key]) => listed.has(key)).reduce((sum, [, c]) => sum + c, 0);
 
+      const rows = [...shown].sort(byCountThenName);
+      if (listZeros && total) {
+        const absent = new Set(crateTracks.map(keyOf));
+        for (const key of [...absent].filter((k) => !listed.has(k)).sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'))) {
+          rows.push([key, 0]);
+        }
+      }
+
       select.textContent = '';
       select.append(new Option(total ? `${allLabel} · ${total} 首` : emptyLabel, ''));
-      for (const [key, count] of [...shown].sort(byCountThenName)) select.append(new Option(`${key} · ${count}`, key));
+      for (const [key, count] of rows) {
+        const option = new Option(`${key} · ${count}`, key);
+        // Option() 的第四个参数是 selected 不是 disabled，别靠构造器标灰。
+        option.disabled = !count && key !== wanted;
+        select.append(option);
+      }
       if (hiddenTracks > 0) {
         const rest = new Option(`另有 ${hiddenShelves} 项 · ${hiddenTracks} 首（用检索找）`, '__rest');
         rest.disabled = true;
         select.append(rest);
       }
       select.value = wanted;
-      // 只在清单是空的（读取失败）时才锁。只有一格可挑也不锁：置灰的控制件看起来像坏了，
-      // 而用户其实只是想点开确认「这个归类下就这一种风格」，或者从「全部」那行退回去。
-      select.disabled = total === 0;
+      // 这两格永远不锁：一个点不动的下拉在用户眼里就是坏了，而它其实只是想表达「现在没得挑」。
+      // 没得挑的时候靠第一行写字说明（暂无风格 / 暂无归类），要退回全部就点那一行。
     }
 
     function fillSides() {
@@ -1394,7 +1410,7 @@ const { caption = '电台' } = Astro.props;
     // 风格那一格是 tools/music_manifest.py 从标题里猜的，所以「其他」老老实实摆在列表里：
     // 猜不出来就该让人看见猜不出来，而不是假装每首歌都有归属。
     function fillGenres() {
-      fillFacet(genreSelect, 'genre', (track) => track.genre, '全部风格', '暂无风格', true);
+      fillFacet(genreSelect, 'genre', (track) => track.genre, '全部风格', '暂无风格', true, true);
     }
 
     function applyCrateFilter() {
