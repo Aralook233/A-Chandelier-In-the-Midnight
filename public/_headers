@@ -32,8 +32,8 @@
   Cache-Control: public, max-age=31536000, immutable
   X-Content-Type-Options: nosniff
 
-/music/*
-  Cache-Control: public, max-age=86400
+/music/tracks.json
+  Cache-Control: public, max-age=0, must-revalidate
   Cross-Origin-Resource-Policy: same-origin
 
 /.well-known/*

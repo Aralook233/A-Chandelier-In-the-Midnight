@@ -1382,7 +1382,9 @@ const { caption = '电台' } = Astro.props;
         select.append(rest);
       }
       select.value = wanted;
-      select.disabled = counts.size < 2 && !wanted;
+      // 只在清单是空的（读取失败）时才锁。只有一格可挑也不锁：置灰的控制件看起来像坏了，
+      // 而用户其实只是想点开确认「这个归类下就这一种风格」，或者从「全部」那行退回去。
+      select.disabled = total === 0;
     }
 
     function fillSides() {
