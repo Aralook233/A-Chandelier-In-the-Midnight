@@ -34,6 +34,7 @@ those titles will pull the 1.4 MB fill face at runtime.
 import argparse
 import hashlib
 import json
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -57,6 +58,109 @@ ARTIST_KEYS = ("artist", "albumartist")
 ALBUM_KEYS = ("album",)
 YEAR_KEYS = ("date", "originaldate", "year")
 TRACK_KEYS = ("track", "tracknumber")
+
+
+# 风格标签：缓存里没有 genre 这个字段，只能从标题 / UP 主 / 视频标题里猜。规则按顺序
+# 命中，第一条赢，所以越具体的放前面（「伴奏」比「纯音乐」更准，「初音ミク」比「日语」更准）。
+# 关键词一律小写比对；宁可落到「其他」，也不要为了填满而把一首歌塞进错的那一格。
+GENRE_RULES = (
+    ("伴奏·分轨", ("伴奏", "instrumental", "inst版", "分轨", "纯享", "去人声", "无人声", "ktv", "消音",
+               "消人声", "tracklib", "backing track")),
+    ("鬼畜·音MAD", ("鬼畜", "音mad", "mad", "全明星", "电棍", "梁逸峰", "王司徒", "诸葛亮", "金坷垃",
+                 "ilem", "普通disco", "摆渡", "井盖", "high歌", "葫芦娃", "恶搞", "空耳", "抽象",
+                 "圣经", "语录", "名场面", "鬼才", "neta", "整活", "鬼畜调教", "整大活", "抽象圣经")),
+    ("虚拟歌手", ("vocaloid", "ボカロ", "初音", "ミク", "miku", "镜音", "鏡音", "巡音", "ルカ", "meiko",
+               "kaito", "gumi", "synthv", "vsinger", "utau", "声库", "音源", "重音", "テト", "teto",
+               "音街", "ウナ", "可不", "kafu", "flower", "結月", "ゆかり", "東北", "きりたん", "ずんだ",
+               "心愛", "歌愛", "里命", "東雲", "洛天依", "言和", "乐正", "星尘", "海伊", "苍穹", "カササギ", "柿崎", "r-906",
+               "墨清弦", "徵羽", "心华", "梦nex", "歌衣", "v4x", "v3", "sv", "本家", "官方投稿", "acesind",
+               "いよわ", "chinozo", "mili", "toboe", "wowaka", "40m-p", "40mp", "n-buna", "kairikib",
+               "aqu3ra", "柊magnet", "柊マグネット", "kanaria", "v flower", "うたた歌衣")),
+    ("游戏音乐", ("tno", "hoi4", "钢铁雄心", "paradox", "欧陆风云", "维多利亚", "eu4", "原声音乐",
+               "bgm", "ost", "vgm", "游戏", "arcaea", "osu", "deemo", "cytus", "djmax", "malody",
+               "phigros", "chunithm", "maimai", "世界计划", "sekai", "谱面", "音游", "太鼓",
+               "minecraft", "原神", "崩坏", "星穹", "绝区零", "鸣潮", "明日方舟", "arknights",
+               "第五人格", "蛋仔", "泰拉瑞亚", "星露谷", "宝可梦", "pokemon", "任天堂", "mario",
+               "塞尔达", "最终幻想", "ff14", "怪物猎人", "只狼", "艾尔登", "黑神话", "英雄联盟",
+               "魔兽", "星际争霸", "红警", "命令与征服", "战争雷霆", "使命召唤", "战地", "halo",
+               "东方", "touhou", "上海アリス", "zun", "节奏大师", "世界计划p")),
+    ("影视·配乐", ("电影", "影视", "电视剧", "纪录片", "综艺", "剧场版", "动画", "动漫", "番剧",
+               "日剧", "韩剧", "片头", "片尾", "主题曲", "插曲", "配乐", "原声带", "电影原声",
+               "星际穿越", "interstellar", "hans", "季默", "久石让", "久石讓", "坂本龙一", "坂本龍一",
+               "泽野", "川井", "菅野", "梶浦", "新海诚", "吉卜力", "攻壳", "eva", "魔禁", "假面骑士",
+               "奥特曼", "进击", "鬼灭", "咒术", "海贼", "火影", "死神", "柯南", "龙珠", "灌篮",
+               "钢炼", "东京喰种", "全职猎人", "你的名字", "天气之子", "铃芽", "千与千寻", "龙猫",
+               "天空之城", "哈尔", "泰坦尼克", "教父", "漫威", "权力的游戏", "怪奇物语", "op1", "op2",
+               "ed1", "ed2", "op完整", "ed完整", "insert song")),
+    ("红歌·军歌", ("苏联", "蘇聯", "游击队", "游擊隊", "国际歌", "喀秋莎", "建军", "国庆", "国歌",
+               "南斯拉夫", "冷战", "进行曲", "东方红", "十送", "我的祖国", "黄河大", "长征", "钢铁",
+               "近卫", "红旗", "军歌", "军盲", "红军", "抗日", "志愿军", "祖国", "颂歌", "社会主义",
+               "莫斯科", "德意志", "第三帝国", "内战", "反统一", "革命", "共青团", "苏维埃", "东德", "西德", "人民", "魏玛", "布尔什维克", "无产者", "国际悲歌")),
+    ("古典", ("古典", "交响", "交響", "协奏", "協奏", "奏鸣", "奏鳴", "安魂", "requiem", "弥撒",
+            "咏叹", "歌剧", "赋格", "fugue", "夜曲", "圆舞曲", "前奏曲", "室内乐", "钢琴曲", "鋼琴",
+            "小提琴", "大提琴", "贝多芬", "beethoven", "莫扎特", "mozart", "巴赫",
+            "bach", "肖邦", "chopin", "李斯特", "德彪西", "柴可夫斯基", "tchaikovsky", "拉赫",
+            "德沃夏克", "维瓦尔", "亨德尔", "勃拉姆斯", "舒伯特", "舒曼", "圣桑",
+            "格里格", "西贝柳斯", "马勒", "印象派")),
+    ("说唱", ("rap", "hip hop", "hip-hop", "hiphop", "说唱", "trap", "boombap", "boom bap", "drill",
+            "freestyle", "diss", "mc", "eminem", "姆爷", "谢帝", "功夫胖", "cbloc", "c-block", "gai",
+            "诺米", "阴三", "派克特", "法老", "揽佬", "唐川", "老幺", "活死人", "说唱新世代",
+            "中国新说唱", "street rap", "punchline")),
+    ("摇滚·金属", ("摇滚", "搖滾", "后朋", "punk", "metal", "rock", "乐队", "樂團", "金属", "金屬",
+               "死金", "黑金", "旋死", "金属核", "硬核", "grunge", "emo", "英伦", "britpop",
+               "indie", "独立音乐", "dream pop", "shoegaze", "post rock", "math rock", "nirvana",
+               "linkin", "queen", "beatles", "平克", "电台司令", "muse", "beyond", "五月天", "万青",
+               "痛仰", "新裤子", "草东", "no party", "枪与玫瑰", "嘶吼", "吉他英雄", "riff")),
+    ("电子", ("电子", "電音", "电音", "edm", "synthwave", "retrowave", "蒸汽波", "vapor", "maretu",
+            "funk", "phunk", "mashup", "bootleg", "remix", "slowed", "speed up", "montagem",
+            "phonk", "hardstyle", "hardcore", "tano*c", "techno", "trance", "house", "dubstep",
+            "future bass", "riddim", "dnb", "drum and bass", "breakcore", "breakbeat", "gabber",
+            "jungle", "glitch", "electro", "synth", "arpeggio", "sequencer", "acid", "eurobeat",
+            "hyperpop", "nightcore", "city pop", "disco", "迪斯科", "ambient", "lofi", "lo-fi",
+            "chill", "808", "jersey club", "赛博", "mix", "miraidempa", "未来電波", "未来电波")),
+    ("世界·民族", ("民谣", "民歌", "童谣", "儿歌", "摇篮曲", "蒙古", "呼麦", "维语", "藏语", "侗族",
+               "苗族", "彝族", "三弦", "马头琴", "古琴", "古筝", "琵琶", "笛子", "二胡", "箫", "埙",
+               "爵士", "jazz", "bossa", "flamenco", "拉丁", "samba", "tango", "reggae", "country",
+               "乡村", "非洲", "凯尔特", "风笛", "苏格兰", "爱尔兰", "巴尔干", "克莱兹默", "俄罗斯",
+               "俄语", "意大利", "法兰西", "法语", "德意志民歌", "印尼", "甘美兰", "gamelan", "印度",
+               "阿拉伯", "土耳其", "犹太", "演歌", "邦乐", "和乐器", "民族乐", "k-pop", "kpop", "j-pop", "jpop")),
+    ("翻唱·现场", ("翻唱", "cover", "填词", "中文版", "国语版", "粤语", "台语", "人声版", "重唱",
+               "现场", "live", "演唱会", "合唱", "二重唱", "对唱", "清唱", "a cappella", "acapella",
+               "acoustic", "不插电", "哼唱", "重新编曲", "改编", "二创", "翻自", "翻弹", "vocal ver")),
+    ("纯音乐", ("纯音乐", "純音樂", "纯音", "器乐", "器樂", "独奏", "指弹", "无词", "曲集", "钢琴版",
+             "八音盒", "音乐盒", "輕音樂", "轻音乐", "背景音", "助眠", "学习", "piano ver",
+             "background music", "instrumental version")),
+    ("流行·经典", ("流行", "华语", "国语", "粤语歌", "欧美", "日韩", "日推", "歌单", "榜单", "金曲",
+               "经典", "老歌", "怀旧", "情歌", "神曲", "网络歌曲", "抖音", "ballad", "pop", "r&b",
+               "soul", "女声", "男声", "hi-res", "hires", "黑胶", "百万级", "试听", "无损", "发烧", "推荐", "循环", "必听", "单曲",
+               "cd音质", "磁带音质", "remastered", "录音棚", "豪装", "大声听", "jlrs")),
+)
+GENRE_FALLBACK = "其他"
+
+_MATCHES = {}
+
+
+def _hit(word, haystack):
+    """Latin keywords need word boundaries: plain substring matching let "deo"
+    inside "video" and "live" inside "believe" claim tracks they never touched."""
+    if word.isascii():
+        pattern = _MATCHES.get(word)
+        if pattern is None:
+            pattern = _MATCHES.setdefault(word, re.compile(r"(?<![0-9a-z])%s(?![0-9a-z])" % re.escape(word)))
+        return pattern.search(haystack) is not None
+    return word in haystack
+
+
+def classify_genre(title, artist, album, side=""):
+    fields = tuple(str(part or "").lower() for part in (title, artist, album, side))
+    for label, words in GENRE_RULES:
+        if any(_hit(word, part) for word in words for part in fields):
+            return label
+    # 兜底：这批缓存里的西里尔字母标题几乎都是苏/德系军歌（《哎，小苹果》那一类），
+    # 而它们一个中文关键词都不带。只在别的规则全落空时才这么判。
+    if any("Ѐ" <= c <= "я" for part in fields for c in part):
+        return "红歌·军歌"
+    return GENRE_FALLBACK
 
 
 def tag_text(tags, keys):
@@ -84,6 +188,7 @@ def tag_number(tags, keys):
 def build(path, folder, title, artist, album, year, number, duration, kind, side=None):
     rel = path.relative_to(folder).as_posix()
     top = rel.split("/", 1)[0] if "/" in rel else ""
+    side = side or top or album or "未分类"
     return {
         "id": hashlib.sha1(rel.encode("utf-8")).hexdigest()[:ID_LENGTH],
         "key": rel,
@@ -92,7 +197,8 @@ def build(path, folder, title, artist, album, year, number, duration, kind, side
         "album": album,
         "year": year or None,
         "track": number or None,
-        "side": side or top or album or "未分类",
+        "side": side,
+        "genre": classify_genre(title or path.stem, artist, album, side),
         "duration": duration,
         "bytes": path.stat().st_size,
         "format": str(kind).lower(),
@@ -203,7 +309,7 @@ def stage_audio(tracks, folder, stage_dir):
 
 
 def visible_chars(tracks):
-    fields = ("title", "artist", "album", "side")
+    fields = ("title", "artist", "album", "side", "genre")
     text = "".join(str(track[field]) for track in tracks for field in fields if track[field])
     return {c for c in text if ord(c) > 0x7F and not ("\ud800" <= c <= "\udfff")}
 

@@ -13,7 +13,7 @@ py -3 tools/music_manifest.py <音频文件夹>   # 生成 src/data/music.mjs
 页面上的流程是：
 
 1. 电台打开「节目单」时读 `/music/tracks.json`（由 `src/pages/music/tracks.json.js` 在构建时
-   生成，只有 id、曲名、作者、盘架、时长）。
+   生成，只有 id、曲名、作者、盘架、风格、时长）。
 2. 点某一行时取 `/track/<id>`（`functions/track/[id].js` 从 KV 读那几片拼成请求的区间，
    照样支持 Range/206 断点）。存储里的 key 从来不给浏览器。
 

@@ -88,6 +88,10 @@ const { caption = '电台' } = Astro.props;
       <div class="radio-crate" id="radioCrate" data-crate hidden>
         <div class="crate-filter">
           <label class="radio-field">
+            <span class="radio-field-name">风格</span>
+            <select class="radio-select" data-genre aria-label="按风格筛选"></select>
+          </label>
+          <label class="radio-field">
             <span class="radio-field-name">归类</span>
             <select class="radio-select" data-side aria-label="按归类筛选"></select>
           </label>
@@ -1240,6 +1244,7 @@ const { caption = '电台' } = Astro.props;
     const crate = pick('crate') as HTMLElement | null;
     const crateToggle = pick('crate-toggle') as HTMLButtonElement | null;
     const sideSelect = pick('side') as HTMLSelectElement | null;
+    const genreSelect = pick('genre') as HTMLSelectElement | null;
     const searchInput = pick('search') as HTMLInputElement | null;
     const crateList = pick('list') as HTMLElement | null;
     const prevBtn = pick('prev') as HTMLButtonElement | null;
@@ -1251,6 +1256,7 @@ const { caption = '电台' } = Astro.props;
       title: string;
       artist: string;
       side: string;
+      genre: string;
       duration: number;
       format: string;
     };
@@ -1281,6 +1287,7 @@ const { caption = '电台' } = Astro.props;
         title: raw.title,
         artist: typeof raw.artist === 'string' ? raw.artist : '',
         side: typeof raw.side === 'string' && raw.side ? raw.side : '未分类',
+        genre: typeof raw.genre === 'string' && raw.genre ? raw.genre : '其他',
         duration: Number.isFinite(raw.duration) ? Number(raw.duration) : 0,
         format: typeof raw.format === 'string' ? raw.format.toLowerCase() : '',
       };
@@ -1297,6 +1304,7 @@ const { caption = '电台' } = Astro.props;
       if (!payload) {
         crateRequested = false; // 让下次点开还能重试，别一次失败就把货舱焊死
         fillSides();
+        fillGenres();
         if (countLabel) countLabel.textContent = '节目单读取失败，再点开一次重试';
         return;
       }
@@ -1304,6 +1312,7 @@ const { caption = '电台' } = Astro.props;
       const list: unknown[] = payload && Array.isArray(payload.tracks) ? payload.tracks : [];
       crateTracks = list.map(readCrateTrack).filter((track): track is CrateTrack => track !== null);
       fillSides();
+      fillGenres();
       applyCrateFilter();
     }
 
@@ -1323,13 +1332,29 @@ const { caption = '电台' } = Astro.props;
       sideSelect.disabled = shelves.length < 2;
     }
 
+    // 风格那一格是 tools/music_manifest.py 从标题里猜的，所以「其他」老老实实摆在列表里：
+    // 猜不出来就该让人看见猜不出来，而不是假装每首歌都有归属。
+    function fillGenres() {
+      if (!genreSelect) return;
+      const counts = new Map<string, number>();
+      for (const track of crateTracks) counts.set(track.genre, (counts.get(track.genre) ?? 0) + 1);
+      const labels = [...counts.entries()]
+        .sort((a, b) => (b[1] - a[1]) || a[0].localeCompare(b[0], 'zh-Hans-CN'));
+      genreSelect.textContent = '';
+      genreSelect.append(new Option(crateTracks.length ? `全部风格 · ${crateTracks.length} 首` : '暂无风格', ''));
+      for (const [label, count] of labels) genreSelect.append(new Option(`${label} · ${count}`, label));
+      genreSelect.disabled = labels.length < 2;
+    }
+
     function applyCrateFilter() {
       const side = sideSelect ? sideSelect.value : '';
+      const genre = genreSelect ? genreSelect.value : '';
       const needle = (searchInput ? searchInput.value : '').trim().toLowerCase();
       crateView = crateTracks.filter((track) => {
+        if (genre && track.genre !== genre) return false;
         if (side && track.side !== side) return false;
         if (!needle) return true;
-        return `${track.title} ${track.artist} ${track.side}`.toLowerCase().includes(needle);
+        return `${track.title} ${track.artist} ${track.side} ${track.genre}`.toLowerCase().includes(needle);
       });
       cratePage = 0;
       renderCrate();
@@ -1404,6 +1429,7 @@ const { caption = '电台' } = Astro.props;
       crateToggle?.setAttribute('aria-expanded', 'false');
     });
 
+    genreSelect?.addEventListener('change', applyCrateFilter);
     sideSelect?.addEventListener('change', applyCrateFilter);
     searchInput?.addEventListener('input', applyCrateFilter);
     prevBtn?.addEventListener('click', () => {

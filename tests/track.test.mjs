@@ -258,6 +258,18 @@ async function sliceOf(response) {
   check('没有单曲超过 4 MiB 分片上限的 6 倍', oversized === 0, String(oversized));
 }
 
+// 6b. 风格标签是分类器猜出来的，所以这里只守它的形状，不守它猜得对不对
+{
+  const genres = musicTracks.map((track) => track.genre);
+  check('每首都带风格标签', genres.every((genre) => typeof genre === 'string' && genre.length > 0));
+  const labels = [...new Set(genres)];
+  check('风格不超过 20 格', labels.length <= 20, String(labels.length));
+  check('标签短到塞得进下拉框', labels.every((label) => label.length <= 8), labels.join('/'));
+  const other = genres.filter((genre) => genre === '其他').length;
+  check('落到「其他」的不到四成', other / genres.length < 0.4,
+    `${((other / genres.length) * 100).toFixed(1)}%`);
+}
+
 // 7. 客户端节目单不得泄露库内对象名
 {
   const sample = {
@@ -269,6 +281,7 @@ async function sliceOf(response) {
     year: 2026,
     track: 3,
     side: '第一卷',
+    genre: '电子',
     duration: 213.5,
     bytes: 8888,
     format: 'mp3',
@@ -280,7 +293,8 @@ async function sliceOf(response) {
     const payload = JSON.parse(await response.text());
     const entry = payload.tracks.find((track) => track.id === sample.id);
     check('节目单里有这首歌', Boolean(entry), JSON.stringify(payload.tracks.length));
-    check('电台要的字段齐全', entry && entry.title === '夜色流淌' && entry.duration === 213.5 && entry.format === 'mp3');
+    check('电台要的字段齐全', entry && entry.title === '夜色流淌' && entry.duration === 213.5
+      && entry.format === 'mp3' && entry.genre === '电子');
     check('节目单不含 key', entry && !('key' in entry), JSON.stringify(entry));
     check('节目单不含 bytes/album/year/track', entry && !('bytes' in entry) && !('album' in entry) && !('year' in entry) && !('track' in entry));
     const body = JSON.stringify(payload);

@@ -14,6 +14,7 @@ function publicTrack(track) {
     title: track.title,
     artist: track.artist,
     side: track.side,
+    genre: track.genre,
     duration: track.duration,
     // 电台靠它区分磁带和 MIDI：/track/<id> 这种地址没有扩展名可看。
     format: track.format,

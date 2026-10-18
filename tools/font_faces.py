@@ -33,7 +33,7 @@ OUT_DIR = ROOT / "public" / "fonts"
 CSS = ROOT / "src" / "styles" / "story-font.css"
 SUFFIXES = {".md", ".astro", ".ts", ".mjs", ".json"}
 MUSIC = ROOT / "src" / "data" / "music.mjs"
-MUSIC_FIELDS = ("title", "artist", "album", "side")
+MUSIC_FIELDS = ("title", "artist", "album", "side", "genre")
 # Typographic characters the Markdown renderer can substitute at build time.
 TYPOGRAPHY = "“”‘’«»–—…′″"
 

@@ -1,257 +1,253 @@
-# 《吊灯》小说站说明
+# 《吊灯》小说站
 
-这是一个基于 Astro 的轻小说阅读站，英文名沿用父文件夹名称：
+一个中文轻小说阅读站：Astro 静态构建，部署在 Cloudflare Pages；登录与留言是 Pages Functions + Workers KV，没有数据库。
 
-- English: Chandelier In the Midnight with an Idoit and a Cup
-- Chinese: 《吊灯》
+- 英文名沿用仓库名：Chandelier In the Midnight with an Idoit and a Cup
+- 中文名统一写作：《吊灯》
 
-项目的核心结构是：
+页面一共四类：章节阅读（`/novels/…`，带阅读进度与订阅源）、留言板（登录后发言，管理员可删）、`/studio/`（一个零依赖的浏览器 DAW，见第 9 节），以及首页那台 80 年代收音机（795 首曲目从私有 KV 流式播放，见第 8 节）。
+
+技术栈：Astro 7（`output: 'static'`）· Cloudflare Pages + Functions + KV · 无前端框架 · 无 SQL · 无 CSS 框架 · Node `>= 22.12`。全站自托管一个按 `unicode-range` 拆分的霞鹜文楷 webfont（见第 4 节），字体许可证是 OFL 1.1。
+
+## 1. 跑起来
+
+```sh
+npm install
+npm run dev        # http://localhost:4321，只监听 127.0.0.1
+npm run build      # 输出 dist/
+npm run verify     # build + CSP 守卫 + 105 条后端安全测试 + 77 条电台路由测试
+npm run test:functions  # 只跑后端那 105 条（对着内存 KV mock 打真实 handler）
+npm run test:track      # 只跑电台那 77 条
+npm run icons           # 重新生成 PWA / Apple 图标
+```
+
+要 Node `>= 22.12`（`package.json` 的 `engines`），没有 TypeScript 构建步骤——`.ts` 由 Astro/Vite 处理，`functions/` 里全是 `.js`。
+
+根目录的 `start.bat` 等价于 `npm run dev`。**不要把 dev server 改成 `--host 0.0.0.0`**：那会把带源码和错误栈的开发服务暴露到局域网。
+
+`astro dev` 不加载 `functions/`，本地调接口（包括 `/track/<id>`）要用 `wrangler pages dev dist`，凭证放 `.dev.vars`；本站日常开发不依赖这一步。
+
+## 2. 目录
 
 ```text
 Novel-blog/
-├── README.md
-├── package.json
-├── functions/                 # Cloudflare Pages Functions
-│   ├── _lib/security.js       # KV 层清洗、密码哈希、会话签名、限流
-│   └── api/
-│       ├── auth.js
-│       └── discussions.js
+├── astro.config.mjs            # 静态输出、inlineStylesheets:'never'、两个 remark 插件
+├── functions/                  # Cloudflare Pages Functions（路由按文件路径自动挂载）
+│   ├── _lib/security.js        # 输入清洗、PBKDF2、会话签名、限流桶
+│   ├── _lib/accounts.js        # 用户表（KV 单键 + CAS）、会话吊销
+│   ├── _lib/purge.js           # 删贴后清 CDN 缓存（可选能力）
+│   ├── track/[id].js           # 电台音频路由：从 KV 的分片里拼出 Range 区间
+│   └── api/auth.js · api/discussions.js
 ├── public/
-│   ├── _headers               # CSP 与安全响应头
-│   └── music/
+│   ├── _headers                # CSP、缓存策略、机器人限制头——安全头的唯一来源
+│   ├── fonts/                  # tools/font_faces.py 生成的 woff2 子集（内容哈希命名）+ OFL.txt
+│   ├── icons/ · manifest.webmanifest · .well-known/security.txt
+│   └── music/                  # 只剩一份说明，音频本体不在仓库（见第 8 节）
 ├── src/
-│   ├── content.config.ts
-│   ├── content/
-│   │   └── novels/
-│   │       ├── 第一卷/
-│   │       ├── 第二卷/
-│   │       └── ...
-│   ├── utils/
-│   │   ├── sanitize.ts        # 输出到 HTML 前的转义与清洗
-│   │   ├── theme.ts           # 深色模式切换
-│   │   └── tesseract.ts       # 超立方体动画（主页与 404 页共用）
-│   └── pages/
-│       ├── index.astro
-│       ├── 404.astro          # 自定义 404 页
-│       └── Novels/
-│           └── [...slug].astro
-└── start.bat
+│   ├── content/novels/第一卷/第01章.md …
+│   ├── content.config.ts       # 章节 schema
+│   ├── data/music.mjs          # 生成物：795 首的节目单，含库内路径 key，绝不下发给浏览器
+│   ├── plugins/remark-*.mjs    # 自然段与中文标点排版
+│   ├── pages/index.astro · 404.astro · Novels/[...slug].astro · studio.astro · rss.xml.js
+│   ├── pages/music/tracks.json.js   # 电台在打开节目单时才 fetch 的白名单字段
+│   ├── components/RadioPlayer.astro
+│   ├── scripts/discussion-moderation.js
+│   ├── styles/                 # story-font / story-typography / homepage-motion / moderation / studio
+│   ├── utils/                  # sanitize.ts · theme.ts · tesseract.ts · midi.ts · studio/（见第 9 节）
+│   └── pages/…（每个页面的样式写在它自己的 <style> 里）
+├── tests/                      # functions.security.test.mjs（105）· track.test.mjs（77）
+└── tools/                      # 见第 4、8 节：csp-guard · font_faces · music_manifest · music_kv_put · make-icons
 ```
 
-## 1. 这几个名字分别代表什么
+## 3. 写章节
 
-- 英文名：来自父文件夹名，作为小说的英文标题
-- 中文名：统一写作 《吊灯》
-- 卷名：例如 第一卷、第二卷、第三卷
-- 章节名：例如 第01章、第02章
-
-目录中的章节文件应当保持清晰统一，推荐命名格式如下：
-
-```text
-src/content/novels/第一卷/第01章.md
-src/content/novels/第二卷/第02章.md
-```
-
-每个章节文件都需要带上 front matter：
-
-```md
----
-title: "第一卷第1章"
-part: "第一卷"
-chapter: 1
----
-```
-
-如果没有这些字段，Astro 会把它视为无效内容，导致构建失败。
-
-## 2. 我现在的更新流程
-
-### 每次新增章节时
-
-1. 进入 `src/content/novels/` 目录
-2. 找到对应卷名文件夹，例如 `第一卷`
-3. 新增一个章节文件，命名为 `第XX章.md`
-4. 在文件头部写入 front matter：
+文件放 `src/content/novels/<卷名>/第XX章.md`，front matter 必填前三项：
 
 ```md
 ---
 title: "第1章"
 part: "第一卷"
 chapter: 1
+published: "2026-10-08"
 ---
 ```
 
-5. 章节正文直接写在 front matter 后面
-6. 保存后，网站会在首页和章节列表中自动识别
+`published` 可选，但**要进订阅源就得手写**。RSS 的 `pubDate` 只信这个字段，不信文件时间：git 检出不保存 mtime，构建机上所有章节的时间都等于那次 checkout 的时刻，用它会让你每次部署都把全部旧章节重推一遍。缺日期的条目不输出 `pubDate`，按卷章倒序排在有日期的条目后面（规则见 `src/pages/rss.xml.js` 头部注释）。
 
-### 每次修改样式时
+正文排版由两个 remark 插件负责，`astro.config.mjs` 里那行 `remarkPlugins` 和样式层的 `story-typography.css` 是配套的，删任一边都会让段落合并或标点悬挂失效。别把草稿、`test.md` 一类的文件放进 `src/content/novels/`——不符合 schema 的内容会让构建报 `InvalidContentEntryDataError`。
 
-- 主页样式在 `src/pages/index.astro`
-- 阅读页样式在 `src/pages/Novels/[...slug].astro`
-- 404 页样式在 `src/pages/404.astro`，动画逻辑在 `src/utils/tesseract.ts`
-- 内容收集规则在 `src/content.config.ts`
+## 4. 字体：改过正文就要重跑
 
-### 本地预览
+站点自带霞鹜文楷（OFL 1.1，许可证在 `/fonts/OFL.txt`），拆成同一个家族的 `unicode-range` 面，`public/fonts/` 里现在有两片：
 
-在项目根目录运行：
+- `lxgw-core`（0.21 MB）：正文会渲染的每一个字形，首次访问下载
+- `lxgw-fill`（1.37 MB）：GB2312 剩余部分，只有页面遇到 core 画不出来的字时才请求
 
-```sh
-npm install
-npm run dev
-```
+`tools/font_faces.py` 还能切出第三片 `lxgw-music`：只有节目单的行能碰到的字（曲名、作者、盘架、风格）。795 条 B 站标题里有 1100 多个正文字用不到的字，把它们并进 core 会让每个只来读小说的人多下载约 190 KB，所以单开一面。**这一片目前还没生成**（缺字体源文件，见下），后果是第一次打开节目单会去拉那 1.37 MB 的 fill 面——读小说不受影响。
 
-然后打开浏览器访问：
-
-```text
-http://localhost:4321
-```
-
-### 构建部署
+生成顺序是**构建 → 切片 → 再构建**，因为角色集要读 `dist/**.html`（Markdown 会把直引号换成 `“ ”`，只扫源码会漏字）：
 
 ```sh
 npm run build
+py -3 tools/font_faces.py D:\path\to\LXGWWenKai-Regular.ttf
+npm run build
 ```
 
-部署走 Git：Cloudflare Pages 监听本仓库分支，自己执行 `npm run build`，输出目录填 `dist`。**不要用 Direct Upload 只传 `dist`**——那样不含 `functions/`，`/api/auth` 和 `/api/discussions` 会整个消失。
+`LXGWWenKai-Regular.ttf` 不进仓库（`.gitignore` 里有 `*.ttf`），要从上游发布页自己下载；切片要 `fontTools` 与 brotli：`py -3 -m pip install fonttools brotli`。`tools/font_faces.py` 的 `SUFFIXES` 含 `.json`，`music_chars()` 又读 `src/data/music.mjs` 的 `title/artist/album/side/genre` 五个字段，所以**加过章节或换过节目单就要重跑**，否则新字会去拉那 1.37 MB 的 fill 面。文件名内嵌内容哈希，因此 `public/_headers` 里 `/fonts/*` 可以安全地 `max-age=31536000, immutable`。
 
-音乐文件放到：
+三个坑，别再踩：一个 range 的上界**不能再带 `U+`**（`U+20-7e` 正确，`U+20-U+7e` 整条描述符会被浏览器静默丢弃，于是两面都变成覆盖全码位、每次访问都下载 1.6 MB）；同一家族的几面必须**互不相交**（脚本里的 `carve()` 就是干这个的），否则重叠的 `unicode-range` 让浏览器把两面都拉下来，拆分等于白做；`tools/music_manifest.py` 报「标签里出现 N 个非 ASCII 字符」就是在提醒有新字。验收方法：`getComputedStyle` 之外，直接看 `document.fonts`——core 应 `loaded`、fill 应 `unloaded`，且 Network 里只出现 `lxgw-core.*.woff2`。
 
-```text
-public/music/
-```
+## 5. 样式与美术方向
 
-支持的音频格式包括 MIDI、MP3、WAV、OGG、FLAC 等。部署后，页面会自动扫描这些静态文件并在左侧音乐播放器中列出可选项。
+已声明的视觉语言是冷战构成主义海报：**平涂实色、硬边、直角、1px 发丝线、阴影只允许 `3px 3px 0` 的实色偏移（套印没对准），不做高斯模糊、不做金属/木纹渐变**，全站只新增一种颜色——红旗红 `--motion-accent`（浅色 `#a8271b`，深色 `#d2503a`）。`src/styles/homepage-motion.css` 头部与 `RadioPlayer.astro` 里都写了这套规则。
 
-### 部署链路：上线前必须核对
+要遵守的两条工程约束：
 
-本地文件和线上内容不是一回事——Pages 从 GitHub 构建，只有**已提交**的文件会上线。核查结论（2026-10-07）：
+- 主题令牌在**每个页面自己的 `:root`** 里定义（浅色块 + `data-theme='dark'` 块 + `prefers-color-scheme` 块三处要一起改）。
+- 针对某个页面自有 class 的覆盖（例如 `@media (prefers-reduced-motion: reduce)` 里的 `.volume-panel`、`.chapter-item`）**必须写在该页的 `<style>` 内**。Astro 给 scoped 样式加了 `data-astro-cid-*` 属性，特异性高于同名全局选择器，写在 `homepage-motion.css` 里会静默输掉。
 
-- `git ls-files` 显示以下文件仍是未跟踪状态，因此线上完全没有它们：
-  - `functions/_lib/`：`api/auth.js`、`api/discussions.js` 都 `import` 它。若只把改好的端点提交而漏掉 `_lib`，Functions 构建会直接失败
-  - `public/_headers`：CSP、HSTS、`X-Frame-Options`、`Permissions-Policy` 等全部安全头。**实测线上响应里一条都没有**
-  - `src/utils/`（`sanitize.ts`、`theme.ts`、`tesseract.ts`）、`src/pages/404.astro`、`tests/`
-- 线上跑的是提交 `655d4d0` 那版旧代码，实测漏洞：
-  - 会话 Cookie 是**未签名的 JSON**，`GET /api/auth` 会原样回显 `role`：手工拼一个 cookie 就能自称管理员
-  - 旧代码里硬编码了管理员账号与口令，而仓库 `Aralook233/A-Chandelier-In-the-Midnight` 是 **public**，凭据已进入公开的 git 历史（`git log -p -- functions/api/auth.js` 可复原），必须视为已泄露：改密码、只通过 Pages Secret 配置 `ADMIN_USERNAME`/`ADMIN_PASSWORD`
-  - 注册账号以明文存进 KV，`/api/discussions` 的 `name` 字段完全由请求体决定且渲染时未转义
-- 因此切换前：先删掉 `AUTH_STORE` 的 `users` 键（旧明文账号无法登录，见下节），再一次性提交 `_lib/`、`public/_headers`、`src/utils/`、`src/pages/`、`tests/`
-- Cloudflare Pages 项目侧要确认：Production 与 **Preview** 是否绑定同一个 KV（预览部署的 `*.pages.dev` 链接对任何人可访问，且会写生产数据）；`SESSION_STORE` 若没绑定，登出吊销会退化为只清 Cookie
-- 线上所有响应带 `Access-Control-Allow-Origin: *`，而仓库里没有任何地方配置它——来源在 Cloudflare 控制台（Transform Rules / Pages 自定义头）或 DNSHE 侧，需要去面板确认并去掉
-- 线上 KV 的留言列表里还留着两条攻击载荷（`<script>…</script>`、`<img src=x onerror=…>`），确认无用后删除
+小字号文本对 `--gold`（`#8d7a5a`）在纸色上只有 3.66:1，不达 WCAG AA；红色在深色底上 4.33:1。所以 0.74rem 一档的文字请用 `--ink` / `--ink-soft`，红色只用于描边和实色偏移这类图形元素。
 
-### 域名与 DNSSEC 的实际链路
+## 6. 部署
 
-`loop-Chandelier.de5.net` 的权威名字服务器是 `a.ns.dnshe.org` / `b.ns.dnshe.org`，也就是 **DNSHE 的 `de5.net` 公共区域**，不是 Cloudflare 托管的 zone：
+Cloudflare Pages 监听本仓库分支并自己执行 `npm run build`，输出目录 `dist`。
 
-- Cloudflare 只在 `de5.net` 之内签发一个主机名 / 提供 Pages 边缘，DNSSEC 必须由**区域的签名者**（`de5.net` 一侧）并把 DS 提交到 `.net` 才生效。Cloudflare 面板里给自己的 zone 开 DNSSEC，对一个 `*.de5.net` 主机名不起作用
-- 边缘证书由 Google Trust Services 签发（`CN=loop-chandelier.de5.net`），信任链完全依赖 CA 的签发校验；`de5.net` 未设 CAA 限制，且子域由第三方免费分发，存在**子域被回收/被他人申领**与越权签发的风险
-- 想让 DNSSEC 真正成立，需要用自己持有的域名（在 Cloudflare 建 zone、开启 DNSSEC、把 DS 提交到注册商），而不是 DNSHE 的免费后缀
-- 本次网络无法查询 DS/CAA（DoH 出口被拦），上述记录以 `nslookup` 实测的 NS 为准；DNSSEC 状态请在 https://dnssec-analyzer.verisignlabs.com 输入你的主机名复核
+- **不要用 Direct Upload 只传 `dist/`**：那不含 `functions/`，`/api/auth`、`/api/discussions` 会整个消失。
+- Pages 从 GitHub 构建，**只有已提交的文件会上线**。本地看到的东西和线上的东西不是一回事，提交前确认新文件真的进了 git（`functions/_lib/`、`public/_headers`、`src/utils/`、`src/styles/` 漏任何一个都会让线上或构建直接坏）。
 
-## 3. 安全与运行配置
+### 需要配置的环境变量与绑定
 
-### 输入转义与清洗
-
-- 渲染层：`src/utils/sanitize.ts` 提供 `escapeHtml()`，留言区所有插值在写入 HTML 前统一转义
-- 存储层：`functions/_lib/security.js` 的 `sanitizeText()` 在写入 / 读取 KV 时二次清洗（去标签、去控制字符、去 `javascript:` 等危险协议、限长）
-- 接口层：`readJsonBody()` 只接受 `application/json`（或 `+json`）内容类型，表单式跨站请求直接拒绝
-- 传输层：`public/_headers` 部署 CSP（`script-src 'self'`，无 `unsafe-inline`）与其他安全响应头
-
-### Cloudflare Pages 需要配置的环境变量 / 绑定
-
-| 名称 | 类型 | 用途 |
+| 名称 | 配在哪 | 用途 |
 | --- | --- | --- |
-| `DISCUSSION_STORE` | KV namespace | 留言存储 + 留言限流计数 |
-| `AUTH_STORE` | KV namespace | 用户存储 + 登录限流计数 + 会话吊销名单 |
-| `AUTH_SECRET` | Secret（≥32 字符） | 会话 Cookie 的 HMAC 签名密钥 |
-| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | Secret（≥12 位） | 初始管理员账号，仅用于首次登录 |
+| `AUTH_STORE` | KV namespace | 用户表、登录限流计数、会话吊销名单、会话密钥兜底 |
+| `DISCUSSION_STORE` | KV namespace | 留言表与留言限流 |
+| `SESSION_STORE` | KV namespace（可选） | 拆分上述用途；没绑时代码自动退回 `AUTH_STORE` |
+| `AUTH_SECRET` | **Secret**（≥32 字符） | 会话 Cookie 的 HMAC 签名，也是限流假名桶的密钥 |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | **Secret** | 种子管理员，只存在于环境变量，永不写入 KV |
+| `PUBLIC_SITE_URL` | **构建环境变量**（不是 Secret） | RSS 的订阅地址；Secret 在构建期读不到 |
+| `MUSIC_A` / `MUSIC_B` / `MUSIC_C` | KV namespace × 3（**三个都要绑**） | 电台的音频分片。名字必须逐字一致；少绑一个，落在它上面的曲目一律 503 |
+| `CF_ZONE_ID` / `CF_PURGE_TOKEN` | Secret（可选） | 删贴后清 CDN；token 只授予 Zone.Cache Purge 一项权限 |
 
-生成密钥示例：`openssl rand -base64 48`。缺少 `AUTH_SECRET` 时，签名密钥随机生成一次并保存在 KV 的 `session:secret`；两者都没有时退化为进程内临时密钥，实例重启后所有会话失效。
+`AUTH_SECRET` 缺失时，签名密钥会随机生成一次并存进 KV 的 `session:secret`；两者都没有则退化为进程内临时密钥—— isolate 重启后所有会话失效，限流桶也各自独立计数。口令类变量必须是 Secret：普通环境变量在 Pages 控制台和 API 响应里是明文可见的。
 
-`ADMIN_PASSWORD` 必须配成 Secret：它是明文比对的环境变量，放在普通环境变量里会在 Pages 控制台和 API 响应中直接可见。
+绑定改完要**再部署一次**才生效，Pages 不会热更新 Functions 的配置。本地调 `/track/*` 用 `wrangler pages dev dist`，`.dev.vars` 里给三个本地 namespace 即可。
 
-### 账号相关行为
+## 7. 安全模型（要点）
 
-- 密码以 PBKDF2-SHA256（15 万次迭代 + 随机盐）存储，不再保存明文
-- 只接受哈希账号：KV 里遗留的明文记录（早期版本写入的）**无法登录**，即使密码正确；下一次注册或写入会把它们从 `users` 键中清除，明文不会继续驻留存储
-- 因此部署新代码前请先删除 `AUTH_STORE` 的 `users` 键：旧注册用户需要重新注册，这是有意为之——那些密码此前一直以明文躺在 KV 里，等同于已泄露
-- 管理员种子账号只在环境变量中，永远不会被写进 KV
-- 会话 Cookie 为 `HttpOnly; Secure; SameSite=Lax`，且带签名，无法伪造 `role`
-- 每个会话带独立 `tokenId`：登出、以及重新登录时的旧会话会被写入 `revoked:<tokenId>` 黑名单（TTL 等于该会话原本的剩余寿命），因此**登出后被盗用的 token 立即失效**，不再只依赖 Cookie 过期
-- 顶栏登录后会变为「退出 · 昵称」，点击即触发上述服务端吊销
-- 登录失败统一返回同一提示，且用户名不存在时同样执行一次 PBKDF2 派生，避免用响应耗时枚举账号
-- 注册密码至少 8 位；同一 IP + 用户名 15 分钟内最多 8 次尝试；同一 IP 每小时最多注册 5 个账号；**同一 IP 15 分钟内最多 60 次密码派生**（轮换用户名会为每个名字各开一个新桶，这条才是真正封顶 CPU 的）；账号总数受 KV 单键上限约束（200 个），满员时注册返回 503 而不会签发一个未被存储的会话
-- 留言限流：匿名 1 分钟内 3 条，登录用户 1 分钟内 10 条；留言列表最多保留最新 30 条
-- 用户列表的并发写入使用 KV 条件写（compare-and-swap）保护，注册冲突会重试而不是互相覆盖
+**输入清洗分四层**，各拦各的：`src/utils/sanitize.ts` 的 `escapeHtml()` 负责写进 HTML 前转义；`functions/_lib/security.js` 的 `sanitizeText()` 在读写 KV 时二次清洗（去标签、去控制字符与零宽字符、去 `javascript:` 等危险协议、限长）；`readJsonBody()` 只接受 JSON 内容类型，表单式跨站请求直接拒；`public/_headers` 兜底。
 
-### 访客 IP 与日志留存
+**CSP 是 header 型且不含 `'unsafe-inline'`、hash 或 nonce**（`script-src 'self'; style-src 'self'`）。静态站点发不出每次请求的 nonce，而 Astro 已把每页的脚本与样式打进 `/_astro`，所以没有需要放行的内联块。`tools/csp-guard.mjs` 在构建后扫一遍产物，一旦哪个页面重新出现内联样式/脚本就让构建失败——因为那在生产里是静默失效的。配套的是 `astro.config.mjs` 的 `inlineStylesheets: 'never'`。
 
-- 限流桶的身份标识是 `HMAC(IP[+用户名], 会话密钥)` 的前 16 位（`functions/_lib/security.js` 的 `bucketIdentity`）。KV 里只出现 `rl:auth:<digest>` 这类假名键，**不再有明文 IP，也不再暴露"谁正在被爆破"的用户名**；分桶粒度与限流行为不变（测试第 17 节覆盖）
-- 前提是密钥稳定：配好 `AUTH_SECRET`（或让 `SESSION_STORE`/`AUTH_STORE` 里的 `session:secret` 生效）。两者都缺省时签名密钥是进程内临时的，假名会随 isolate 变化，限流桶也就各自独立计数
-- 不要在 Cloudflare 面板开启请求日志留存 / Logpush 导出。访客 IP 在边缘必然可见（`CF-Connecting-IP`，控制台 Security → Events、Analytics & Logs 都能看到），但那是 Cloudflare 侧的可见性；把日志持久化或导出到自己的存储会把短期可见变成长期留存，与本站功能无关，明确不做
-- 留言、账号、会话中都不存储访客 IP：`/api/discussions` 的响应只回 `{name, verified}`，评论记录只有 `id/name/message/createdAt/verified`
-- 限流依赖 `CF-Connecting-IP`。当前 `loop-Chandelier.de5.net` 直接解析到 Cloudflare 边缘，所以该头可信；如果以后改成由 DNSHE 之类做前置反向代理，这个头会变成代理的出口 IP，所有访客会塌进同一个限流桶（匿名留言会集体 429）。换解析方式后必须复测
-- 提醒：访客侧唯一能改变自己所暴露 IP 的办法是走代理/VPN/Tor，浏览器内部设置（清 Cookie、无痕、改 UA）都换不掉 IP
+**账号与会话**：PBKDF2-SHA256（默认 15 万次迭代 + 随机盐），KV 里不存明文；只接受哈希过的账号，早期遗留的明文记录即使密码正确也无法登录，下次写入会顺手清掉（所以换代码前请先删 `AUTH_STORE` 的 `users` 键）。Cookie 为 `HttpOnly; Secure; SameSite=Lax` 且带签名，`role` 无法靠手拼 cookie 伪造。每个会话有独立 `tokenId`，登出与顶号会把旧 token 写进吊销名单（TTL 等于其剩余寿命，上限 30 天），被盗用的 token 立刻失效。用户名不存在时同样执行一次派生，避免用响应耗时枚举账号。
 
-### 架构取舍（有意为之，不是遗漏）
+**限流**：登录/注册按 IP + 用户名 15 分钟 8 次；每 IP 每小时最多注册 5 个；**每 IP 15 分钟最多 60 次密码派生**（轮换用户名会给每个名字新开一个桶，这条才是真正封顶 CPU 的，且检查发生在查库之前，节流期间存在与不存在的用户名返回同一个 429）。留言 60 秒窗口内匿名 3 条、登录 10 条。留言列表只保留最新 30 条，账号总数上限 200（KV 单键尺寸决定），满员时注册返回 503 而不是签发一个没存下来的会话。
 
-- **无数据库，全部状态在 KV 三个键族里**：`users`（整表一个值）、`comments`（整表一个值）、`rl:*` / `revoked:*` / `session:secret`。整表读写意味着每次注册/留言都是「读-改-写 + 条件写（CAS）」，规模上限是 200 账号 / 30 条留言。这个量级下比 D1 更省、更少故障面；要长出「分页、按用户查询、审计」这类需求时应当换 D1，而不是继续加大 KV 值
-- **会话是无状态签名的**（HMAC + `tokenId` 吊销名单），所以「登出/改密后立刻失效」靠的是 KV 里一条 TTL 记录，而不是服务端会话表
-- **限流/派生计数 fail-open**：KV 读失败或命名空间没绑时放行请求。理由是把可用性放在容量问题之前——代价是没绑 `AUTH_STORE` 时注册限速完全失效，因此 `warningFor` 会把「未配置存储」显式报给前端
-- **`clientIdentity` 在无 `CF-Connecting-IP` 时退到 `X-Forwarded-For` 首跳**：本地 wrangler 需要它，但任何非 Cloudflare 边缘的前置都能伪造这个头（见上节）
-- **公开读取可缓存、写入与身份查询不缓存**：`GET /api/discussions` → `public, max-age=20, stale-while-revalidate=60`；`POST` 与 `/api/auth` 一律 `no-store`。这是留言数据全部公开这一事实换来的优化
-- **注册/登录的派生开销受每 IP 预算封顶**，且该检查在查库之前，节流期间的响应码对存在与不存在的用户名完全一致（429），不会把状态码变成枚举Oracle
+**访客 IP**：限流桶的身份是 `HMAC(IP[+用户名], 会话密钥)` 前 16 位，KV 里只有 `rl:auth:<digest>` 这类假名键，不再有明文 IP，也不再暴露正在被爆破的用户名。留言、账号、会话都不存 IP。限流依赖 `CF-Connecting-IP`；当前域名直接解析到 Cloudflare 边缘所以可信，若以后前面挂了别的反代，这个头会变成代理出口 IP，全体访客塌进同一个桶（匿名留言集体 429），换解析方式必须复测。**不要在面板开启请求日志留存 / Logpush 导出**：把短期可见变成长期留存，与本站功能无关。
 
-### 待你决定的架构缺口（我没有擅自补）
+**审核能力**：`DELETE /api/discussions` 只接受已签名会话里 `role === 'admin'` 的身份（作者名一律从会话解析，不读请求体），删完由 `_lib/purge.js` 尽力清一次 CDN；purge 失败不改变删除结果，也不给管理员报错。
 
-- `role: 'admin'` 目前**不授予任何能力**：种子管理员和普通成员能做的事完全相同。要么把它接上（留言删除/审核端点），要么删掉这个字段，别留一个「看起来有权限」的假象
-- **没有删除/审核留言的服务端接口**：出现刷屏或不当内容时只能手改 KV。补一个就要补 CSRF、权限校验与吊销语义，属于新功能而非修复
-- **没有改密/找回密码流程**：忘记密码=账号永久不可用，需要你在面板侧处理。加任何 reset 令牌的表面都是一处新的可被滥用的状态机
-- **Preview 部署与生产共用 KV** 的风险仍未验证（见「部署链路」节），这需要在 Pages 项目设置里确认，不是代码能解决的
+**已知历史问题**：早期版本把管理员账号口令硬编码在 `functions/api/auth.js` 里，而这个仓库是 public，凭据已进入公开的 git 历史（`git log -p` 可复原），必须视为已泄露——现在的口令只从 Secret 读取。
 
-`package.json` 通过 `overrides` 将 `http-cache-semantics` 锁定到 `^4.3.0`，用于修掉 astro 传递依赖里的高危缓存漏洞（GHSA-ch52-4w7c-c8xp）。升级 astro 后请用 `npm audit` 确认该 override 是否仍需要。
+## 8. 电台与音频
 
-### 本地调试
+音频**不进仓库**：GitHub 单文件上限 100 MiB，而且几百首一旦提交就永远留在 git 历史里，每次克隆和构建都得拖着它们。`public/music/` 因此整个目录进了 `.gitignore`（只有 `.gitkeep` 和 `README.md` 入库），但页面仍在构建期 `readdir` 它并把文件名烘进列表——副作用是本机往这里放音频会出现在 `localhost:4321` 的电台里，却因为没进 git 而不上线。这是「本地能播、线上没有」的唯一原因，和构建缓存无关。目录空着时 `readdir` 的报错被 `catch` 吞掉，列表退化为「载入磁带」，构建照常。
 
-`start.bat` 只监听 `127.0.0.1`。请勿改回 `--host 0.0.0.0`：那会把带源码与错误栈的 dev server 暴露到局域网。
+线上播放分三步，每一步只有一个文件负责：
 
-### 深色模式
+```sh
+py -3 tools/music_manifest.py F:\BilibiliCache\download --bili   # ① 生成 src/data/music.mjs
+node tools/music_kv_put.mjs --stage F:\BilibiliCache\music-stage --dry-run
+node tools/music_kv_put.mjs --stage F:\BilibiliCache\music-stage # ② 切片写进三个私有 KV
+# ③ functions/track/[id].js 按 Range 把那几片拼回来，是电台唯一的取音出口
+```
 
-- 顶栏「深色 / 浅色」按钮切换，选择保存在 `localStorage`
-- 未手动切换时跟随系统 `prefers-color-scheme`
-- 主题变量集中在各页面的 `:root` 令牌中，新增颜色请走令牌而不是写死色值
+① 生成的是**已提交**的清单（795 首，含库内相对路径 `key`、字节数、12 位不透明 `id`）；② 上传的是文件本体（886 个 key，1.843 GiB）。`id` 是 `key` 的 sha1 前 12 位，所以**只改标题、作者、风格这类展示字段不会换 id，不用重传**——diff `music.mjs` 里的 `id/key/bytes` 就能确认这一点。
 
-### 手机端与平板端适配
+为什么要绕 `/track/<id>` 这一圈，而不是把存储的公开地址直接塞进 `<audio>`：
 
-- 三个页面都使用 `width=device-width, initial-scale=1.0, viewport-fit=cover`，并用 `env(safe-area-inset-*)` 处理刘海屏
-- 断点约定：`1100 / 1024`（平板横屏，收窄侧栏）、`900 / 1040`（平板竖屏，改为单列）、`640 / 560 / 420`（手机）
-- 单列时主页侧栏限高 `52vh` 并内部滚动，阅读页把正文排在目录之前，避免小屏先看到长列表
-- 手机端首页动画区由正圆改为圆角矩形（`overflow: hidden` 保留裁切），「当前卷目」卡片固定在圆内底部
-- 输入框字号统一 16px，避免 iOS 聚焦时自动放大页面；触控目标不小于 44px
+1. `public/_headers` 里 CSP 钉了 `media-src 'self' blob:`，外链地址浏览器根本不会去取，同源路径才放得行。
+2. 存储是私有的。访客只拿到 12 位 id，看不到里面的对象名，也拼不出别的键去捞没上节目单的东西。
+3. 顺带把 `Range`/`206` 做对——没有断点续传的音频在手机上要么拖不动，要么整首先下完才响。
 
-### 自定义 404 页
+**后端是 KV 而不是 R2**：开 R2 要挂银行卡，KV 在账号已有的免费额度里。代价是 KV 没有 Range 读（一次 `get` 会把整个值拉回来），所以才按 `PART_SIZE` 切片存放，请求区间落在哪几片就只读哪几片；文件总长从清单的 `bytes` 拿，不需要 R2 那次 head 探测。4 MiB 这个数是额度算出来的：795 首里只有 57 首会被切开，平均一次请求读 1.11 片，最坏一次拖进度条拉回 4 MiB；切到 2 MiB 会把 key 数从 886 推到 1322，超出 KV 每天 1000 次写的免费额度，上传就得跨两天跑。
 
-- `src/pages/404.astro` 会构建成 `dist/404.html`，Cloudflare Pages 对未匹配路由自动返回该文件
-- 复用主页的超立方体动画（`src/utils/tesseract.ts`），文案为「你怎么到这里来了？」
-- 动画脚本已抽成共享模块，`index.astro` 与 `404.astro` 各自 `mountTesseract(canvas)`
-- 页面同样走 CSS 令牌，支持深色模式，并且不含内联脚本 / 内联样式，符合 CSP
+分流是 `shardOf(id)` = id 末位十六进制 `% 3`，纯函数、不查表。**改 `SHARDS` 或 `PART_SIZE` 等于全库重传**，这两处常量只应改一次。额度现状：每个 namespace 上限 1 GiB，实际 `MUSIC_A` 0.65 / `MUSIC_B` 0.64 / `MUSIC_C` 0.56 GiB（314 / 297 / 275 个 key）；全站每天 100k 次读。上传脚本断点续传（开跑前列一遍已有 key，已存在即跳过），中断后重跑同一条命令即可；单日写超 1000 会自动只写前 1000 个，第二天接着传。
 
-### 阅读进度条
+B 站缓存目录用 `--bili` 模式：每个 `<avid>/<c_cid>/entry.json` 是一首，曲名取 `page_data.part`（分 P 名），作者取 `owner_name`，时长取 `total_time_milli`，字节取该目录下最高音质的 `audio.m4s`。视频、封面、弹幕一律忽略，也不需要标签库（`mutagen` 只在松散文件模式用）。`audio.m4s` 是 fragmented MP4，浏览器直接可播，**不需要 ffmpeg 转码或 remux**。
 
-- 位于章节页视口顶部，3px 高的固定条，颜色由 `--gold` / `--ink-soft` 令牌驱动
-- 逻辑在 `src/pages/Novels/[...slug].astro` 的脚本里：`scroll` 监听 + `requestAnimationFrame` 节流，写入 `transform: scaleX()`
-- 同时更新 `aria-valuenow`，读屏可获取百分比；`prefers-reduced-motion` 下关闭过渡
+**入选规则**：短于 30 秒、长于 1 小时的丢弃——缓存里的短片很少是想听的整曲，超长的通常是合并稿而不是单曲；真要收进的合并稿用 `--keep-long <key或标题子串>` 点名放行（可以重复给）。同一首歌的不同版本全部留下，清单**永不查重**。**不要重命名缓存里的文件**：`key` 就是路径本身，改名会让那一首的 id 变掉、必须重传。
 
-## 4. 注意事项
+`genre`（节目单上的「风格」下拉）不是元数据，是 `classify_genre()` 从曲名/作者/专辑/盘架里**猜**的：一组按顺序命中的关键词规则，第一条赢，全落空就叫「其他」。ASCII 关键词按词边界匹配（否则纯子串会让 `deo` 命中 `video`、`live` 命中 `believe`），中文按子串。规则顺序很重要——越具体的越靠前（「伴奏」比「纯音乐」准，「初音ミク」比「日语」准）。宁可落进「其他」也不为了填满格子把一首塞错：目前 214/795 在「其他」，这是这批缓存的真实构成，不是分类器坏了。`tests/track.test.mjs` 只守它的形状（每首都有标签、标签不超过 20 格、短到塞得进下拉框、「其他」不到四成），不守猜得对不对。
 
-- 不要把无关的 `.md` 文件放进 `src/content/novels/` 目录
-- 例如 `test.md`、临时草稿、未命名的文件都可能被误识别
-- 章节名必须符合 `第XX章.md` 这种格式
-- 若内容不规范，Astro 会在构建时报 `InvalidContentEntryDataError`
-- `astro dev` 不会加载 `functions/` 目录，本地调试接口请用 `wrangler pages dev dist`
+`/music/*` 的响应头是 `max-age=86400` + `Cross-Origin-Resource-Policy: same-origin`。
 
-## 5. 如果你想继续更新
+**退出计划**：仓库只有清单，音频在私有 namespace。要搬家就把 KV 里 `${key}/${part}` 的每个键按 `part` 顺序拼回文件——键表完全由 `src/data/music.mjs` 加上 `PART_SIZE` / `shardOf()` / `partKey()` 三个导出算出来，`node tools/music_kv_put.mjs --dry-run` 打印的就是这份计划（每桶几个 key、占多少 GiB，不读不写凭证也能跑）。换任何私有桶 + 同源路由的后端，只改 `functions/track/[id].js` 一个文件——前端、CSP、清单里的 id 都不用动。
 
-最重要的原则只有一句：
+## 9. 工作室 `/studio/`
 
-> 只在 `src/content/novels/` 里放正式章节，页面会自动读取，不用手动维护目录列表。
+一个零依赖的浏览器 DAW（步进网格 + 钢琴卷帘 + 采样 + WAV 导出），页面上标的是「Sawer DAW 测试版本」。**没有前端框架、没有音频库**，`src/utils/studio/` 九个原生 ES module 各管一件事，`src/pages/studio.astro` 只负责骨架和 `<style>` 里的美术覆盖：
+
+| 模块 | 职责 | 为什么单独切出来 |
+| --- | --- | --- |
+| `types.ts` | 数据模型与常量（`STEPS=16`、`PPQ=4`、`RESOLUTION`、吸附档位表） | UI 层、发声层、持久化层共用同一份「什么算一个项目」 |
+| `engine.ts` | 发声：振荡器 + 噪声缓冲现场合成鼓与合成器 | 实时播放和离线导出共用 `playNote()`，两边听到的才是同一个东西 |
+| `scheduler.ts` | lookahead 排程：`setTimeout` 只管醒来，绝对定时一律用 `AudioContext.currentTime` | 定时器抖动几十毫秒节奏就抖；按**整步**排而不是整首排，播放中改网格/音量/采样，播放头走到下一步立刻生效 |
+| `notes.ts` | 音符增删改（吸附、跨小节、同音高重叠） | 网格与卷帘共用，否则边界条件各写一套、各错一处 |
+| `piano-roll.ts` | 卷帘 | 行高与列宽读 CSS 变量（`--roll-row-h`、`--roll-tick-w`），JS 不写死，小屏要放大触控目标 |
+| `samples.ts` | 采样导入 + IndexedDB 持久化（单个 12 MiB、最多 48 个） | 采样只来自用户自己的文件；`AudioBuffer` 活在内存，磁盘上存原始字节 |
+| `wav-export.ts` | `OfflineAudioContext` 离线渲染成 RIFF/PCM | 精确到采样、不受主线程卡顿影响，也不要 `getUserMedia` 权限 |
+| `store.ts` | localStorage 存档 | 存档**按外部输入处理**：逐条校验 + 钳制，否则一个 `tempo:"abc"` 就让排程器算出 `NaN`、播放头卡死 |
+| `studio-app.ts` | UI 装配 | — |
+
+要改这个页面得知道的三条：
+
+- **参数一律摆在明面上**：力度是网格上方那个 `<select>`（先选力度再点格子，点格子只开关音符），卷帘的细分靠可见的「自动对齐」下拉框。交互是「单击行名试听、双击行名进卷帘」——注意别在单击的处理里重建网格：重建会把行名节点换掉，双击的第二下打在已经离开的节点上，`dblclick` 就发不出来了（`studio-app.ts` 里的 `selectTrack()` 专门只改高亮）。
+- **CSP 不含 `'unsafe-inline'`，也没有 `worker-src`**。所以几何只能用 CSSOM 单属性赋值（`el.style.left = '…'`）——浏览器只拦「解析 style 字符串」，不拦逐条赋值；WAV 的交错编码留在主线程。这两种写法线上已有三处在跑（阅读进度条、收音机指针、卷帘音符块）。
+- **手机是主战场**：样式按 320 px 起排，验收靠同源 iframe 固定宽度实测计算样式，不靠截图猜。
+
+`src/utils/midi.ts` 属于电台那一侧：`<audio>` 解不了 `.mid`，现成播放库要么带几十 MB 的 SoundFont 要么整包拖进 Tone.js，所以只解析 SMF 的 note on/off、program change 和 tempo meta，用振荡器按 GM 音色族近似发声；输入是用户随手选的文件，属于系统边界，解析失败一律返回 `null`。
+
+## 10. 订阅与可安装
+
+- `/rss.xml`：零依赖手写 RSS 2.0，`Cache-Control: public, max-age=1800`。订阅地址取 `PUBLIC_SITE_URL`；`CF_PAGES_URL` / `DEPLOY_URL` 只是兜底，那是每次部署都换的 `*.pages.dev`，绝不能当订阅地址发出去。
+- `manifest.webmanifest` + `public/icons/*`：图标不是设计稿，是被安装程序硬约束的资产（Chrome 要 192/512，Apple 要 180×180 不透明，Android 会裁圆/方/squircle，maskable 版必须满幅底色并把图形压进中央 80%）。改配色或轮廓后重跑 `npm run icons`。
+- `public/.well-known/security.txt`：漏洞联系方式。
+
+## 11. 有意为之的取舍
+
+- **状态全在 KV 的三个键族里**（`users`、`comments`、`rl:*` / `revoked:*` / `session:secret`），整表读写 = 每次注册/留言都是「读-改-写 + 条件写（CAS）」。这个量级下比 D1 更省、故障面更小；一旦需要分页、按用户查询或审计，应该换 D1，而不是继续加大 KV 值。
+- **限流与派生计数 fail-open**：KV 读失败或命名空间没绑时放行，把可用性排在容量问题之前；代价是没绑 `AUTH_STORE` 时注册限速完全失效，因此接口会把「未配置存储」显式报给前端。
+- **`role: 'admin'` 现在只授予删留言**，没有别的特权。
+- **没有改密 / 找回密码流程**：忘记密码等于账号永久不可用。任何 reset 令牌都是一处新的可被滥用的状态机，暂时不做。
+- 留言数据全公开，所以 `GET /api/discussions` 值得缓存（`max-age=20, stale-while-revalidate=60`，新留言最多晚 20 秒出现）；`POST`、`DELETE` 与 `/api/auth` 一律 `no-store`。
+- 前端只暴露 `{name, verified}`，评论记录只有 `id/name/message/createdAt/verified`。
+
+## 12. 行尾：别按常识推断
+
+`core.autocrlf=true` 且**没有 `.gitattributes`**，而 HEAD 里的文本 blob **就是 CRLF**——autocrlf 的 safe-crlf 规则不会再去清洗已含 CRLF 的文件，所以提交保持原样。风险方向是反的：**谁把某个文件整文件按 LF 重存一遍，diff 就会显示整文件改动**，看起来像"别人把我的改动回退了"。
+
+怀疑时的判据（两个数字一样 = 没有行尾噪声，差很多 = 行尾问题）：
+
+```sh
+git diff --stat
+git diff --ignore-cr-at-eol --stat
+```
+
+加 `* text=auto` 的 `.gitattributes` 要单独挑一个没人改文件的窗口做，别在任务中途加——它会重写所有文件的 diff。
+
+## 13. 提交流程
+
+1. `git status` 逐条看清，**不要 `git add -A` 一把梭**。
+2. 确认 `.dev.vars`（里面有 `AUTH_SECRET` / `ADMIN_PASSWORD`）、`.env`、`.wrangler/`、`dist/`、`public/music/` 下的音频、`*.ttf` 都不在待提交列表里。
+3. 改过 `functions/**`、`src/pages/**` 或组件前重新读一遍——可能有并行的编辑已经落在文件里。
+4. `npm run verify` —— build + CSP 守卫 + 105 条后端安全测试 + 77 条电台路由测试，少一条就别推。
+5. 推 `main`（commit 不会上线，**push 才触发构建**；新加/改动的 KV 绑定要在下一次部署后才生效）。
+6. 上线后自己硬刷新一章：只应下载 `lxgw-core.*.woff2`；`/api/discussions` 要带 `max-age=20` 与 `cf-cache-status`；`/api/auth` 要 `no-store`；CSP 头要在；电台的点歌应当真的出声音，`/track/<id>` 回 `206` 而不是 `503`（503 通常是某个 `MUSIC_*` 没绑）。
+
+## 14. 许可
+
+- 字体：霞鹜文楷 / LXGW WenKai，SIL Open Font License 1.1，许可证全文在 `public/fonts/OFL.txt`，上游是 https://github.com/lxgw/LxgwWenKai 。仓库里的 `lxgw-*.woff2` 是它的子集（改作），同样按 OFL 分发。
+- 小说正文：原创作品，**未在仓库内声明授权**，默认保留所有权利。
+- 代码与其余素材：仓库根目录**没有 `LICENSE` 文件**，因此同样没有授予任何人再分发的权利。要给代码定一份许可（MIT / Apache-2.0 之类）请单独决定并补文件，别默认「开源仓库 = 代码可随便用」。
+- 节目单里的曲目来自各 UP 主自己的投稿，仓库只存清单与私有分片，不提供二次下载；`src/data/music.mjs` 里的标题与作者名是事实性元数据。
+- 漏洞报告见 `public/.well-known/security.txt`。
