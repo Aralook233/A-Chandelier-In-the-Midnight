@@ -7,7 +7,7 @@
 
 页面一共四类：章节阅读（`/novels/…`，带阅读进度与订阅源）、留言板（登录后发言，管理员可删）、`/studio/`（一个零依赖的浏览器 DAW，见第 9 节），以及首页那台 80 年代收音机（795 首曲目从私有 KV 流式播放，见第 8 节）。
 
-技术栈：Astro 7（`output: 'static'`）· Cloudflare Pages + Functions + KV · 无前端框架 · 无 SQL · 无 CSS 框架 · Node `>= 22.12`。全站自托管一个按 `unicode-range` 拆分的霞鹜文楷 webfont（见第 4 节），字体许可证是 OFL 1.1。
+技术栈：Astro 7（`output: 'static'`）· Cloudflare Pages + Functions + KV · 无前端框架 · 无 SQL · 无 CSS 框架 · Node `>= 22.12`。全站自托管一个按 `unicode-range` 拆分的仿宋（FandolFang）webfont（见第 4 节），字体许可证是 GPL-2.0 加字体嵌入例外。
 
 ## 1. 跑起来
 
@@ -40,7 +40,7 @@ Novel-blog/
 │   └── api/auth.js · api/discussions.js
 ├── public/
 │   ├── _headers                # CSP、缓存策略、机器人限制头——安全头的唯一来源
-│   ├── fonts/                  # tools/font_faces.py 生成的 woff2 子集（内容哈希命名）+ OFL.txt
+│   ├── fonts/                  # tools/font_faces.py 生成的 woff2 子集（内容哈希命名）+ 两份许可证
 │   ├── icons/ · manifest.webmanifest · .well-known/security.txt
 │   └── music/                  # 只剩一份说明，音频本体不在仓库（见第 8 节）
 ├── src/
@@ -78,24 +78,29 @@ published: "2026-10-08"
 
 ## 4. 字体：改过正文就要重跑
 
-站点自带霞鹜文楷（OFL 1.1，许可证在 `/fonts/OFL.txt`），拆成同一个家族的 `unicode-range` 面，`public/fonts/` 里现在有两片：
+站点正文用仿宋 FandolFang（要的就是那副铅字排出来的样子），许可证是 GPL-2.0 加字体嵌入例外，说明在 `/fonts/FANDOL-LICENCE.txt`，许可证全文 `/fonts/GPL-2.0.txt`。它被拆成同一个家族的三片 `unicode-range`，`public/fonts/` 里现在有三片：
 
-- `lxgw-core`（0.21 MB）：正文会渲染的每一个字形，首次访问下载
-- `lxgw-fill`（1.37 MB）：GB2312 剩余部分，只有页面遇到 core 画不出来的字时才请求
+- `fandol-core`（0.50 MB，1,273 个字）：正文会渲染的每一个字形，首次访问下载
+- `fandol-music`（0.41 MB，1,063 个字）：只有节目单的行能碰到的字（曲名、作者、盘架、风格）；不点电台的读者不会下载它，点开的也不用去拉下面那片
+- `fandol-fill`（2.53 MB，5,351 个字）：GB2312 剩下的部分，只有页面遇到前两片画不出来的字时才请求
 
-`tools/font_faces.py` 还能切出第三片 `lxgw-music`：只有节目单的行能碰到的字（曲名、作者、盘架、风格）。795 条 B 站标题里有 1100 多个正文字用不到的字，把它们并进 core 会让每个只来读小说的人多下载约 190 KB，所以单开一面。**这一片目前还没生成**（缺字体源文件，见下），后果是第一次打开节目单会去拉那 1.37 MB 的 fill 面——读小说不受影响。
+795 条曲名里一共有 1,917 个字，其中 1,063 个是正文用不到的——把它们并进 core 会让每个只来读小说的人多下载 0.41 MB，所以单开一面。实测现在的正文和节目单都不再触发 fill（只有 10 个 emoji 落到系统表情字体，那是本来就该它们接的）；fill 是将来加新章节时的保底，一旦触发就是 2.53 MB，所以**新字要尽早重跑工具收进 core 或 music**。
+
+仿宋比原来的楷体重：Fandol 一个字形平均约 410 B，core 因此从 0.21 MB 涨到 0.50 MB。`font-display: swap` 保证首屏先用系统的仿宋/宋体画出来，字体到了再换。
 
 生成顺序是**构建 → 切片 → 再构建**，因为角色集要读 `dist/**.html`（Markdown 会把直引号换成 `“ ”`，只扫源码会漏字）：
 
 ```sh
 npm run build
-py -3 tools/font_faces.py D:\path\to\LXGWWenKai-Regular.ttf
+py -3 tools/font_faces.py D:\path\to\FandolFang-Regular.otf
 npm run build
 ```
 
-`LXGWWenKai-Regular.ttf` 不进仓库（`.gitignore` 里有 `*.ttf`），要从上游发布页自己下载；切片要 `fontTools` 与 brotli：`py -3 -m pip install fonttools brotli`。`tools/font_faces.py` 的 `SUFFIXES` 含 `.json`，`music_chars()` 又读 `src/data/music.mjs` 的 `title/artist/album/side/genre` 五个字段，所以**加过章节或换过节目单就要重跑**，否则新字会去拉那 1.37 MB 的 fill 面。文件名内嵌内容哈希，因此 `public/_headers` 里 `/fonts/*` 可以安全地 `max-age=31536000, immutable`。
+`FandolFang-Regular.otf` 不进仓库（`.gitignore` 里有 `*.ttf` 和 `*.otf`），从上游 CTAN 下载：http://www.ctan.org/tex-archive/fonts/fandol ；切片要 `fontTools` 与 brotli：`py -3 -m pip install fonttools brotli`。`tools/font_faces.py` 的 `SUFFIXES` 含 `.json`，`music_chars()` 又读 `src/data/music.mjs` 的 `title/artist/album/side/genre` 五个字段，所以**加过章节或换过节目单就要重跑**，否则新字会去拉那 2.53 MB 的 fill 面。文件名内嵌内容哈希，因此 `public/_headers` 里 `/fonts/*` 可以安全地 `max-age=31536000, immutable`。
 
-三个坑，别再踩：一个 range 的上界**不能再带 `U+`**（`U+20-7e` 正确，`U+20-U+7e` 整条描述符会被浏览器静默丢弃，于是两面都变成覆盖全码位、每次访问都下载 1.6 MB）；同一家族的几面必须**互不相交**（脚本里的 `carve()` 就是干这个的），否则重叠的 `unicode-range` 让浏览器把两面都拉下来，拆分等于白做；`tools/music_manifest.py` 报「标签里出现 N 个非 ASCII 字符」就是在提醒有新字。验收方法：`getComputedStyle` 之外，直接看 `document.fonts`——core 应 `loaded`、fill 应 `unloaded`，且 Network 里只出现 `lxgw-core.*.woff2`。
+Fandol 不是全覆盖：正文里 9 个字形（`«»↔−⏏▶◀♯❚`）和曲名里 91 个字（日韩汉字、带变音的拉丁字母、谚文、emoji）它本身没有，浏览器会顺着 `--font-story` 往后找，所以链尾留了 `'Segoe UI Symbol', 'Apple Symbols'`——少了这两个，收音机上的播放/暂停键会变成豆腐块。
+
+三个坑，别再踩：一个 range 的上界**不能再带 `U+`**（`U+20-7e` 正确，`U+20-U+7e` 整条描述符会被浏览器静默丢弃，于是两面都变成覆盖全码位、每次访问都下载 3 MB 出头）；同一家族的几面必须**互不相交**（脚本里的 `carve()` 就是干这个的），否则重叠的 `unicode-range` 让浏览器把两面都拉下来，拆分等于白做；`tools/music_manifest.py` 报「标签里出现 N 个非 ASCII 字符」就是在提醒有新字。验收方法：`getComputedStyle` 之外，直接看 `document.fonts`——core 应 `loaded`、fill 应 `unloaded`，且 Network 里只出现 `fandol-core.*.woff2`。
 
 ## 5. 样式与美术方向
 
@@ -173,11 +178,13 @@ node tools/music_kv_put.mjs --stage F:\BilibiliCache\music-stage # ② 切片写
 
 分流是 `shardOf(id)` = id 末位十六进制 `% 3`，纯函数、不查表。**改 `SHARDS` 或 `PART_SIZE` 等于全库重传**，这两处常量只应改一次。额度现状：每个 namespace 上限 1 GiB，实际 `MUSIC_A` 0.65 / `MUSIC_B` 0.64 / `MUSIC_C` 0.56 GiB（314 / 297 / 275 个 key）；全站每天 100k 次读。上传脚本断点续传（开跑前列一遍已有 key，已存在即跳过），中断后重跑同一条命令即可；单日写超 1000 会自动只写前 1000 个，第二天接着传。
 
-B 站缓存目录用 `--bili` 模式：每个 `<avid>/<c_cid>/entry.json` 是一首，曲名取 `page_data.part`（分 P 名），作者取 `owner_name`，时长取 `total_time_milli`，字节取该目录下最高音质的 `audio.m4s`。视频、封面、弹幕一律忽略，也不需要标签库（`mutagen` 只在松散文件模式用）。`audio.m4s` 是 fragmented MP4，浏览器直接可播，**不需要 ffmpeg 转码或 remux**。
+B 站缓存目录用 `--bili` 模式：每个 `<avid>/<c_cid>/entry.json` 是一首，作者取 `owner_name`，时长取 `total_time_milli`，字节取该目录下最高音质的 `audio.m4s`。视频、封面、弹幕一律忽略，也不需要标签库（`mutagen` 只在松散文件模式用）。`audio.m4s` 是 fragmented MP4，浏览器直接可播，**不需要 ffmpeg 转码或 remux**。
+
+曲名不是直接抄 `page_data.part` 就完事——那一格大多是上传时的文件名（`studio_video_1712345678901.mp4`、`lv_0_20240301120530`、`mmexport…`、`VID_20230815_113244.mp4`、`新项目 6 [B49F4E4]`、`P1`、`？`，或者一长串零宽字符）。`tidy_title()` 先剥掉扩展名、平台尾巴（`- YouTube`）、编码尾巴（`-x264 60fps`）、`副本 (2)`、画质方括号（`【Hi-Res 24bit/192kHz】`）与不可见字符；剩下没有一个真字母（各脚本各自的字母，`isalpha()` 对汉字是 False，所以自己列了码段）就判定成文件名，改用顶层视频标题，标题也画不出字就用 `未命名 · <BV号>`。改完还会二次撞名：同一稿件补 ` P<页号>`，跨稿件各自换成自己的视频标题。最后按新曲名重算一遍 `genre`（`build()` 里是按老名字猜的）。这一层只动展示字段，`key`/`id`/`bytes` 一个字都不改，**不用重传**；现在 795 首里 0 个曲名还是文件名、0 个重名。
 
 **入选规则**：短于 30 秒、长于 1 小时的丢弃——缓存里的短片很少是想听的整曲，超长的通常是合并稿而不是单曲；真要收进的合并稿用 `--keep-long <key或标题子串>` 点名放行（可以重复给）。同一首歌的不同版本全部留下，清单**永不查重**。**不要重命名缓存里的文件**：`key` 就是路径本身，改名会让那一首的 id 变掉、必须重传。
 
-`genre`（节目单上的「风格」下拉）不是元数据，是 `classify_genre()` 从曲名/作者/专辑/盘架里**猜**的：一组按顺序命中的关键词规则，第一条赢，全落空就叫「其他」。ASCII 关键词按词边界匹配（否则纯子串会让 `deo` 命中 `video`、`live` 命中 `believe`），中文按子串。规则顺序很重要——越具体的越靠前（「伴奏」比「纯音乐」准，「初音ミク」比「日语」准）。宁可落进「其他」也不为了填满格子把一首塞错：目前 214/795 在「其他」，这是这批缓存的真实构成，不是分类器坏了。`tests/track.test.mjs` 只守它的形状（每首都有标签、标签不超过 20 格、短到塞得进下拉框、「其他」不到四成），不守猜得对不对。
+`genre`（节目单上的「风格」下拉）不是元数据，是 `classify_genre()` 从曲名/作者/专辑/盘架里**猜**的：14 条按顺序命中的关键词规则、七百多个词，第一条赢，全落空就叫「其他」；带西里尔字母又一个词都没命中的算「红歌」——这批缓存里那是苏联系歌的标志。标签一律取短名，15 格：**术力口 125 / 其他 108 / 游戏 88 / 红歌 75 / 电音 74 / 后朋·金属 70 / 流行 69 / 说唱 49 / 鬼畜 41 / 番剧 33 / 翻唱 23 / 民族 13 / 伴奏 12 / 纯音 12 / 古典 3**（数字随清单变，重跑生成器自己数）。ASCII 关键词按词边界匹配（否则纯子串会让 `deo` 命中 `video`、`live` 命中 `believe`），中文按子串。规则顺序很重要——越具体的越靠前（「伴奏」比「纯音乐」准，「初音ミク」比「日语」准）。宁可落进「其他」也不为了填满格子把一首塞错：目前 108/795（13.6%）在「其他」，这是这批缓存的真实构成，不是分类器坏了。`tests/track.test.mjs` 只守它的形状（每首都有标签、标签不超过 20 格、短到塞得进下拉框、「其他」不到四成），不守猜得对不对。
 
 `/music/*` 的响应头是 `max-age=86400` + `Cross-Origin-Resource-Policy: same-origin`。
 
@@ -242,11 +249,11 @@ git diff --ignore-cr-at-eol --stat
 3. 改过 `functions/**`、`src/pages/**` 或组件前重新读一遍——可能有并行的编辑已经落在文件里。
 4. `npm run verify` —— build + CSP 守卫 + 105 条后端安全测试 + 77 条电台路由测试，少一条就别推。
 5. 推 `main`（commit 不会上线，**push 才触发构建**；新加/改动的 KV 绑定要在下一次部署后才生效）。
-6. 上线后自己硬刷新一章：只应下载 `lxgw-core.*.woff2`；`/api/discussions` 要带 `max-age=20` 与 `cf-cache-status`；`/api/auth` 要 `no-store`；CSP 头要在；电台的点歌应当真的出声音，`/track/<id>` 回 `206` 而不是 `503`（503 通常是某个 `MUSIC_*` 没绑）。
+6. 上线后自己硬刷新一章：只应下载 `fandol-core.*.woff2`；`/api/discussions` 要带 `max-age=20` 与 `cf-cache-status`；`/api/auth` 要 `no-store`；CSP 头要在；电台的点歌应当真的出声音，`/track/<id>` 回 `206` 而不是 `503`（503 通常是某个 `MUSIC_*` 没绑）。
 
 ## 14. 许可
 
-- 字体：霞鹜文楷 / LXGW WenKai，SIL Open Font License 1.1，许可证全文在 `public/fonts/OFL.txt`，上游是 https://github.com/lxgw/LxgwWenKai 。仓库里的 `lxgw-*.woff2` 是它的子集（改作），同样按 OFL 分发。
+- 字体：仿宋 FandolFang R，Fandol 团队（Clerk Ma、Jie Su），GNU GPL-2.0+ 加字体嵌入例外，说明见 `public/fonts/FANDOL-LICENCE.txt`、全文 `public/fonts/GPL-2.0.txt`，上游是 http://www.ctan.org/tex-archive/fonts/fandol 。仓库里的 `fandol-*.woff2` 是它的子集（改作），同样按这份许可证分发。
 - 小说正文：原创作品，**未在仓库内声明授权**，默认保留所有权利。
 - 代码与其余素材：仓库根目录**没有 `LICENSE` 文件**，因此同样没有授予任何人再分发的权利。要给代码定一份许可（MIT / Apache-2.0 之类）请单独决定并补文件，别默认「开源仓库 = 代码可随便用」。
 - 节目单里的曲目来自各 UP 主自己的投稿，仓库只存清单与私有分片，不提供二次下载；`src/data/music.mjs` 里的标题与作者名是事实性元数据。

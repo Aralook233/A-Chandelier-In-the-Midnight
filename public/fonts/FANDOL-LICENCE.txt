@@ -1,0 +1,27 @@
+FandolFang R（仿宋）— 本站正文与界面用字
+Copyright © 2012-2013 the Fandol team
+Written by Clerk Ma, Jie Su. "Chinese fonts for TeX system."
+上游：http://www.ctan.org/tex-archive/fonts/fandol
+
+public/fonts/fandol-*.woff2 是用 tools/font_faces.py（fontTools.subset）从
+FandolFang-Regular.otf 切出来的子集，属于改作，按下面同一份许可证分发。
+字体源文件本身不进仓库（.gitignore 里有 *.otf），要复现切片请从上游下载。
+
+这一份程序是自由软件；你可以按自由软件基金会发布的 GNU 通用公共许可证
+（GNU General Public License）的条款再发布它、修改它，版本 2 或（按你的选项）
+任何更新的版本。全文见 /fonts/GPL-2.0.txt。
+
+发布它是希望它有用，但没有任何担保；甚至没有适销性或特定用途适用性的
+隐含担保。详见 GNU 通用公共许可证。
+
+As a special exception, if you create a document which uses
+this font, and embed this font or unaltered portions of this font into
+the document, this font does not by itself cause the resulting
+document to be covered by the GNU General Public License. This
+exception does not however invalidate any other reasons why the
+document might be covered by the GNU General Public License. If you
+modify this font, you may extend this exception to your version of the
+font, but you are not obligated to do so. If you do not wish to do so,
+delete this exception statement from your version.
+
+—— 以上例外条款原文取自 https://www.gnu.org/licenses/gpl-faq.html#FontException

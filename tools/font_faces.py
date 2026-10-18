@@ -1,4 +1,4 @@
-"""Regenerate the three unicode-range faces of the LXGW WenKai webfont.
+"""Regenerate the three unicode-range faces of the FandolFang 仿宋 webfont.
 
   core   -> every glyph the pages paint; downloaded on first visit
   music  -> only the glyphs a track title / artist / shelf can paint; a browser
@@ -9,7 +9,7 @@
 Writes hashed woff2 files into public/fonts and rewrites
 src/styles/story-font.css, which is what the pages import.
 
-    py -3 tools/font_faces.py D:\\path\\to\\LXGWWenKai-Regular.ttf
+    py -3 tools/font_faces.py D:\\path\\to\\FandolFang-Regular.otf
 
 File names embed a content hash so /fonts/* can be cached immutably. The core
 face must cover what the browser actually paints, and Markdown turns straight
@@ -17,7 +17,9 @@ quotes into typographic ones, so the character set is read from dist/**.html
 when a build is present: run `npm run build`, then this tool, then build again.
 Re-run it after adding chapters. The track list is deliberately NOT part of core:
 700 B 站 titles add over a thousand glyphs, and folding them in would double what
-every reader downloads just to read prose. Licence: OFL 1.1, at /fonts/OFL.txt.
+every reader downloads just to read prose. Licence: GPL-2.0+ with the font
+embedding exception — /fonts/FANDOL-LICENCE.txt and the full text at
+/fonts/GPL-2.0.txt.
 """
 
 import hashlib
@@ -31,6 +33,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 OUT_DIR = ROOT / "public" / "fonts"
 CSS = ROOT / "src" / "styles" / "story-font.css"
+FAMILY = "Fandol Fang"      # @font-face 的家族名，只在 CSS 内部出现
+PREFIX = "fandol"           # 落盘文件名与切片中间产物的前缀
 SUFFIXES = {".md", ".astro", ".ts", ".mjs", ".json"}
 MUSIC = ROOT / "src" / "data" / "music.mjs"
 MUSIC_FIELDS = ("title", "artist", "album", "side", "genre")
@@ -41,10 +45,10 @@ TYPOGRAPHY = "“”‘’«»–—…′″"
 def source_ttf():
     if len(sys.argv) > 1:
         return Path(sys.argv[1])
-    env = os.environ.get("LXGW_TTF")
+    env = os.environ.get("FANDOL_OTF")
     if env:
         return Path(env)
-    raise SystemExit("give the LXGWWenKai-Regular.ttf path as an argument or in LXGW_TTF")
+    raise SystemExit("give the FandolFang-Regular.otf path as an argument or in FANDOL_OTF")
 
 
 def visible_html_text(html):
@@ -156,9 +160,9 @@ def range_text(chars, gap=0, exclude=None):
 
 def subset(chars, tag, src):
     work = Path(os.environ.get("TEMP", "."))
-    text_file = work / f"lxgw_face_{tag}.txt"
+    text_file = work / f"{PREFIX}_face_{tag}.txt"
     text_file.write_text("".join(sorted(chars)), encoding="utf-8")
-    out = work / f"lxgw_face_{tag}.woff2"
+    out = work / f"{PREFIX}_face_{tag}.woff2"
     cmd = [
         sys.executable, "-m", "fontTools.subset", str(src),
         f"--text-file={text_file}", f"--output-file={out}",
@@ -172,7 +176,7 @@ def subset(chars, tag, src):
         raise SystemExit(f"subset failed for {tag}: {res.stderr[-800:]}")
     data = out.read_bytes()
     out.unlink(missing_ok=True)
-    name = f"lxgw-{tag}.{hashlib.md5(data).hexdigest()[:8]}.woff2"
+    name = f"{PREFIX}-{tag}.{hashlib.md5(data).hexdigest()[:8]}.woff2"
     (OUT_DIR / name).write_bytes(data)
     print(f"{tag}: {len(chars)} chars, {len(data):,} bytes -> {name}")
     return name, len(data)
@@ -191,17 +195,17 @@ def main():
     if not core or not fill:
         raise SystemExit("unexpectedly empty character set")
 
-    for stale in OUT_DIR.glob("lxgw-*.woff2"):
+    for stale in OUT_DIR.glob("*.woff2"):
         stale.unlink()
 
     core_name, core_size = subset(core, "core", src)
     music_name, music_size = subset(music, "music", src) if music else ("", 0)
-    fill_name = subset(fill, "fill", src)[0]
+    fill_name, fill_size = subset(fill, "fill", src)
 
     music_face = ""
     if music_name:
         music_face = f"""@font-face {{
-  font-family: 'LXGW Story';
+  font-family: '{FAMILY}';
   src: url('/fonts/{music_name}') format('woff2');
   font-weight: 400;
   font-style: normal;
@@ -213,20 +217,20 @@ def main():
 
     CSS.write_text(
         f"""/*
- * 霞鹜文楷 / LXGW WenKai, three unicode-range faces of one family.
- *   lxgw-core   every glyph the prose paints ({core_size / 1048576:.2f} MB)
- *   lxgw-music  only the glyphs a 节目单 row can paint ({music_size / 1048576:.2f} MB, {len(music):,} chars):
- *               readers who never open the crate never download it, and readers who
- *               do get it instead of the 1.4 MB fill face
- *   lxgw-fill   the rest of GB2312, fetched only when a page renders a character
- *               neither face above carries ({len(fill):,} chars)
- * The ranges are disjoint on purpose: with overlapping unicode-ranges browsers
- * download both faces and the split saves nothing. public/_headers pins
- * `font-src 'self'`, hence self-hosted, and every name embeds a content hash so
- * /fonts/* caches immutably. Licence: OFL 1.1, at /fonts/OFL.txt.
+ * FandolFang 仿宋，一个家族的三个 unicode-range 面（tools/font_faces.py 切的子集）。
+ *   {PREFIX}-core   正文会渲染的每一个字形（{core_size / 1048576:.2f} MB）
+ *   {PREFIX}-music  只有节目单的行能碰到的字（{music_size / 1048576:.2f} MB，{len(music):,} 个）：
+ *               不打开电台的读者不会下载它，打开的人也不用去拉下面那一大片
+ *   {PREFIX}-fill   GB2312 剩下的部分（{len(fill):,} 个），只有页面真的渲染出一个前两片
+ *               都没有的字时才会请求——一旦请求就是 {fill_size / 1048576:.1f} MB，所以 core 覆盖不到
+ *               的新字要尽早重跑工具并进 core 或 music
+ * 三片的 range 故意互不相交：重叠时浏览器会把两片都拉下来，拆分等于白做。
+ * public/_headers 把 font-src 锁在 'self'，所以字体必须自托管；文件名内嵌内容哈希，
+ * /fonts/* 才能安全地 immutable。许可证：GPL-2.0+ 加字体嵌入例外，
+ * 见 /fonts/FANDOL-LICENCE.txt 与 /fonts/GPL-2.0.txt。
  */
 @font-face {{
-  font-family: 'LXGW Story';
+  font-family: '{FAMILY}';
   src: url('/fonts/{fill_name}') format('woff2');
   font-weight: 400;
   font-style: normal;
@@ -235,7 +239,7 @@ def main():
 }}
 
 {music_face}@font-face {{
-  font-family: 'LXGW Story';
+  font-family: '{FAMILY}';
   src: url('/fonts/{core_name}') format('woff2');
   font-weight: 400;
   font-style: normal;
@@ -244,7 +248,9 @@ def main():
 }}
 
 :root {{
-  --font-story: 'LXGW Story', 'LXGW WenKai', '霞鹜文楷', 'Kaiti SC', 'STKaiti', 'KaiTi', '楷体', 'Noto Serif SC', '宋体', serif;
+  /* 仿宋链：Fandol 子集 -> 系统仿宋 -> 楷/宋兜底。最后两个符号面是给 ▶◀⏏❚«» 这些
+     Fandol 没有的字形准备的，缺了它们播放器按钮会变成豆腐块。 */
+  --font-story: '{FAMILY}', 'FangSong', '仿宋', 'STFangsong', 'KaiTi', '楷体', 'Noto Serif SC', '宋体', 'Segoe UI Symbol', 'Apple Symbols', serif;
   font-family: var(--font-story);
 }}
 

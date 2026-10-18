@@ -70,7 +70,7 @@ body {
   min-height: 100%;
   background: var(--paper);
   color: var(--ink);
-  font-family: var(--font-story, 'LXGW Story', 'KaiTi', serif);
+  font-family: var(--font-story, 'Fandol Fang', 'FangSong', '仿宋', serif);
   /* 手机端整页横向滚动由内部面板自己负责，body 不参与 */
   overflow-x: hidden;
   -webkit-text-size-adjust: 100%;

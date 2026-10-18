@@ -32,8 +32,8 @@ esbuild bundle for Pages Functions, and `node tests/...` all import it as-is, wh
 a .json would need import attributes that only some of those three accept.
 
 Output is sorted and carries no timestamp, so re-running it only shows real changes.
-After it reports new characters, rebuild the core font face (tools/font_faces.py) or
-those titles will pull the 1.4 MB fill face at runtime.
+After it reports new characters, re-run tools/font_faces.py: those glyphs belong to the
+`fandol-music` face, and a stale face makes the crate pull the 2.5 MB `fandol-fill` one.
 """
 
 import argparse
@@ -642,7 +642,7 @@ def main():
     if chars:
         sample = "".join(sorted(chars))
         print(f"字形: 标签里出现 {len(chars)} 个非 ASCII 字符（{sample[:60]}）")
-        print("      重跑 tools/font_faces.py 把它们并进 core 面，否则读者会下载 1.4 MB 的 fill 面。")
+        print("      重跑 tools/font_faces.py 更新 fandol-music 面，否则读者会下载 2.5 MB 的 fill 面。")
     for note in warnings[:20]:
         print(f"  ! {note}")
     if len(warnings) > 20:
