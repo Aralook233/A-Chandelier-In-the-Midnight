@@ -1262,7 +1262,7 @@ const { caption = '电台' } = Astro.props;
     };
 
     const CRATE_PAGE = 20;
-    const CRATE_SHELVES = 40;
+    const CRATE_OPTIONS = 40;   // 下拉里最多列几格（归类 449 个，全塞进去没人滚得动）
     const CRATE_ID = /^[0-9a-f]{12}$/;
     let crateTracks: CrateTrack[] = [];
     let crateView: CrateTrack[] = [];
@@ -1311,52 +1311,95 @@ const { caption = '电台' } = Astro.props;
 
       const list: unknown[] = payload && Array.isArray(payload.tracks) ? payload.tracks : [];
       crateTracks = list.map(readCrateTrack).filter((track): track is CrateTrack => track !== null);
-      fillSides();
-      fillGenres();
-      applyCrateFilter();
+      applyCrateFilter();   // 两格下拉的数要从曲目表来，一并在这里填
+    }
+
+    function crateFilters() {
+      return {
+        side: sideSelect ? sideSelect.value : '',
+        genre: genreSelect ? genreSelect.value : '',
+        needle: (searchInput ? searchInput.value : '').trim().toLowerCase(),
+      };
+    }
+
+    function matches(track: CrateTrack, f: ReturnType<typeof crateFilters>, skip: string) {
+      if (skip !== 'genre' && f.genre && track.genre !== f.genre) return false;
+      if (skip !== 'side' && f.side && track.side !== f.side) return false;
+      if (skip !== 'search' && f.needle) {
+        return `${track.title} ${track.artist} ${track.side} ${track.genre}`.toLowerCase().includes(f.needle);
+      }
+      return true;
+    }
+
+    // skip 掉自己那一格，数出来的才是「别的筛选做完之后还剩什么」。两格都按这个数，
+    // 下拉里每一项的首数加起来才等于「全部」那一行，也等于眼前的列表。
+    function countBy(keyOf: (track: CrateTrack) => string, skip: string) {
+      const f = crateFilters();
+      const counts = new Map<string, number>();
+      let total = 0;
+      for (const track of crateTracks) {
+        if (!matches(track, f, skip)) continue;
+        total += 1;
+        const key = keyOf(track);
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+      }
+      return { counts, total };
+    }
+
+    const byCountThenName = (a: [string, number], b: [string, number]) =>
+      (b[1] - a[1]) || a[0].localeCompare(b[0], 'zh-Hans-CN');
+
+    // 货架有 449 个，全塞进下拉没人滚得动：只列成排的（≥2 首），最多 40 个，
+    // 剩下的一行「另有 N 项 · M 首」把账补平；落单的那位用检索框找——检索也匹配货架名。
+    // 已经选中的那一项一定留在下拉里（哪怕别的筛选让它变成 0 首），不然用户的筛选会被悄悄改掉。
+    function fillFacet(
+      select: HTMLSelectElement | null,
+      skip: string,
+      keyOf: (track: CrateTrack) => string,
+      allLabel: string,
+      emptyLabel: string,
+      listSingles: boolean,
+    ) {
+      if (!select) return;
+      const wanted = select.value;
+      const { counts, total } = countBy(keyOf, skip);
+      const ranked = [...counts.entries()].sort(byCountThenName);
+      const shown = ranked.filter(([, count]) => listSingles || count > 1).slice(0, CRATE_OPTIONS);
+      const listed = new Set(shown.map(([key]) => key));
+      if (wanted && !listed.has(wanted)) {
+        shown.push([wanted, counts.get(wanted) ?? 0]);
+        listed.add(wanted);
+      }
+      const hiddenShelves = ranked.filter(([key]) => !listed.has(key)).length;
+      const hiddenTracks = total - ranked.filter(([key]) => listed.has(key)).reduce((sum, [, c]) => sum + c, 0);
+
+      select.textContent = '';
+      select.append(new Option(total ? `${allLabel} · ${total} 首` : emptyLabel, ''));
+      for (const [key, count] of [...shown].sort(byCountThenName)) select.append(new Option(`${key} · ${count}`, key));
+      if (hiddenTracks > 0) {
+        const rest = new Option(`另有 ${hiddenShelves} 项 · ${hiddenTracks} 首（用检索找）`, '__rest');
+        rest.disabled = true;
+        select.append(rest);
+      }
+      select.value = wanted;
+      select.disabled = counts.size < 2 && !wanted;
     }
 
     function fillSides() {
-      if (!sideSelect) return;
-      const counts = new Map<string, number>();
-      for (const track of crateTracks) counts.set(track.side, (counts.get(track.side) ?? 0) + 1);
-      // 700 首会摊出 450 个货架，下拉里塞 450 项没人滚得动：只列成排的（≥2 首），
-      // 按曲目数从多到少排，最多 40 个。落单的那位用检索框找——检索也匹配货架名。
-      const shelves = [...counts.entries()]
-        .filter(([, count]) => count > 1)
-        .sort((a, b) => (b[1] - a[1]) || a[0].localeCompare(b[0], 'zh-Hans-CN'))
-        .slice(0, CRATE_SHELVES);
-      sideSelect.textContent = '';
-      sideSelect.append(new Option(crateTracks.length ? `全部归类 · ${crateTracks.length} 首` : '暂无归类', ''));
-      for (const [side, count] of shelves) sideSelect.append(new Option(`${side} · ${count}`, side));
-      sideSelect.disabled = shelves.length < 2;
+      fillFacet(sideSelect, 'side', (track) => track.side, '全部归类', '暂无归类', false);
     }
 
     // 风格那一格是 tools/music_manifest.py 从标题里猜的，所以「其他」老老实实摆在列表里：
     // 猜不出来就该让人看见猜不出来，而不是假装每首歌都有归属。
     function fillGenres() {
-      if (!genreSelect) return;
-      const counts = new Map<string, number>();
-      for (const track of crateTracks) counts.set(track.genre, (counts.get(track.genre) ?? 0) + 1);
-      const labels = [...counts.entries()]
-        .sort((a, b) => (b[1] - a[1]) || a[0].localeCompare(b[0], 'zh-Hans-CN'));
-      genreSelect.textContent = '';
-      genreSelect.append(new Option(crateTracks.length ? `全部风格 · ${crateTracks.length} 首` : '暂无风格', ''));
-      for (const [label, count] of labels) genreSelect.append(new Option(`${label} · ${count}`, label));
-      genreSelect.disabled = labels.length < 2;
+      fillFacet(genreSelect, 'genre', (track) => track.genre, '全部风格', '暂无风格', true);
     }
 
     function applyCrateFilter() {
-      const side = sideSelect ? sideSelect.value : '';
-      const genre = genreSelect ? genreSelect.value : '';
-      const needle = (searchInput ? searchInput.value : '').trim().toLowerCase();
-      crateView = crateTracks.filter((track) => {
-        if (genre && track.genre !== genre) return false;
-        if (side && track.side !== side) return false;
-        if (!needle) return true;
-        return `${track.title} ${track.artist} ${track.side} ${track.genre}`.toLowerCase().includes(needle);
-      });
+      crateView = crateTracks.filter((track) => matches(track, crateFilters(), ''));
       cratePage = 0;
+      fillSides();
+      fillGenres();
       renderCrate();
     }
 

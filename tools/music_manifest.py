@@ -58,6 +58,12 @@ ID_LENGTH = 12
 BILI_AUDIO = "audio.m4s"
 BILI_MIN_SECONDS = 30.0
 BILI_MAX_MINUTES = 60.0
+# 手动拉黑：按 key 前缀点名踢掉（缓存里路径就是身份，avid/c_cid 不会因为重新下载而变）。
+# 写死在代码里而不是命令行参数——命令行下次重跑就忘了，这首歌会自己爬回来。
+# 要临时放行用 --keep-long，要永久不收就加进这张表。
+DROP_KEYS = (
+    "941358948/c_784568684",   # What's The Difference（Eminem 合作曲）：整库唯一一首说唱，不要
+)
 # easy=True flattens ID3 / MP4 / Vorbis / APE tag names onto one shared vocabulary.
 TITLE_KEYS = ("title", "_title")
 ARTIST_KEYS = ("artist", "albumartist")
@@ -73,7 +79,7 @@ GENRE_RULES = (
     ("伴奏", ("伴奏", "instrumental", "inst版", "分轨", "纯享", "去人声", "无人声", "ktv", "消音",
                "消人声", "tracklib", "backing track")),
     ("鬼畜", ("鬼畜", "音mad", "mad", "全明星", "电棍", "梁逸峰", "王司徒", "诸葛亮", "金坷垃",
-                 "ilem", "普通disco", "摆渡", "井盖", "high歌", "葫芦娃", "恶搞", "空耳", "抽象",
+                 "摆渡", "井盖", "high歌", "葫芦娃", "恶搞", "空耳", "抽象",
                  "圣经", "语录", "名场面", "鬼才", "neta", "整活", "鬼畜调教", "整大活", "抽象圣经",
                  "♿", "冷知识", "拼好歌", "让子弹飞")),
     ("术力口", ("vocaloid", "ボカロ", "初音", "ミク", "miku", "镜音", "鏡音", "巡音", "ルカ", "meiko",
@@ -84,7 +90,8 @@ GENRE_RULES = (
                "いよわ", "chinozo", "mili", "toboe", "wowaka", "40m-p", "40mp", "n-buna", "kairikib",
                "aqu3ra", "柊magnet", "柊マグネット", "kanaria", "v flower", "うたた歌衣",
                "术力口", "v家", "p主", "歌い手", "春嵐", "春岚", "神のまにまに", "神的随波逐流",
-               "メズマライザー", "パノプティコン", "圆形监狱", "千本桜")),
+               "メズマライザー", "パノプティコン", "圆形监狱", "千本桜", "普通disco", "ilem",
+               "wotaku", "知声")),
     ("游戏", ("tno", "hoi4", "钢铁雄心", "paradox", "欧陆风云", "维多利亚", "eu4", "原声音乐",
                "warno", "wargame", "预先号令",
                "bgm", "ost", "vgm", "游戏", "arcaea", "osu", "deemo", "cytus", "djmax", "malody",
@@ -114,7 +121,7 @@ GENRE_RULES = (
                "游击", "抗战", "英雄主义", "保卫黄河", "黄河", "斯拉夫", "古田", "忠骨", "aufmarsch",
                "freikorps", "国际纵队", "华沙", "工人",
                "fdj", "internationale", "自由德国青年", "钢铁洪流", "喀山", "基辅", "柏林", "国会", "燃烧吧", "营歌",
-               "朋友再见", "独立战争", "扬基歌", "百团大战", "草原啊草原")),
+               "朋友再见", "独立战争", "南北战争", "扬基歌", "百团大战", "草原啊草原")),
     ("古典", ("古典", "交响", "交響", "协奏", "協奏", "奏鸣", "奏鳴", "安魂", "requiem", "弥撒",
             "咏叹", "歌剧", "赋格", "fugue", "夜曲", "圆舞曲", "前奏曲", "室内乐", "钢琴曲", "鋼琴",
             "小提琴", "大提琴", "贝多芬", "beethoven", "莫扎特", "mozart", "巴赫",
@@ -126,14 +133,15 @@ GENRE_RULES = (
             "freestyle", "diss", "eminem", "姆爷", "谢帝", "功夫胖", "cbloc", "c-block", "gai",
             "诺米", "阴三", "派克特", "法老", "揽佬", "唐川", "老幺", "活死人", "说唱新世代",
             "中国新说唱", "street rap", "punchline")),
-    ("后朋·金属", ("摇滚", "搖滾", "后朋", "punk", "metal", "rock", "乐队", "樂團", "金属", "金屬",
-               "死金", "黑金", "旋死", "金属核", "硬核", "grunge", "emo", "英伦", "britpop",
-               "indie", "独立音乐", "dream pop", "shoegaze", "post rock", "math rock", "nirvana",
-               "linkin", "queen", "beatles", "平克", "电台司令", "muse", "beyond", "五月天", "万青",
-               "痛仰", "新裤子", "草东", "no party", "枪与玫瑰", "嘶吼", "吉他英雄", "riff",
-               "crimson", "king crimson", "国摇", "post punk", "post-punk", "后摇",
-               "万能青年旅店", "回春丹", "犬儒乐队", "沉舟", "大石碎胸口",
-               "molchat doma", "молчат")),
+    ("后朋·金属", ("后朋", "post punk", "post-punk", "punk rock", "pop punk", "朋克", "暗潮",
+               "darkwave", "metal", "金属", "金屬", "死金", "黑金", "旋死", "金属核", "硬核",
+               "djent", "嘶吼", "molchat doma", "молчат")),
+    ("摇滚", ("摇滚", "搖滾", "rock", "乐队", "樂團", "grunge", "emo", "英伦", "britpop",
+               "indie", "独立音乐", "dream pop", "shoegaze", "post rock", "math rock", "后摇",
+               "nirvana", "linkin", "queen", "beatles", "平克", "电台司令", "muse", "beyond",
+               "五月天", "万青", "万能青年旅店", "草东", "no party", "枪与玫瑰", "吉他英雄", "riff",
+               "crimson", "king crimson", "国摇", "回春丹", "犬儒乐队", "沉舟", "大石碎胸口",
+               "痛仰", "新裤子")),
     ("电音", ("电子", "電音", "电音", "edm", "synthwave", "retrowave", "蒸汽波", "vapor", "maretu",
             "funk", "phunk", "mashup", "bootleg", "remix", "slowed", "speed up", "montagem",
             "phonk", "hardstyle", "hardcore", "tano*c", "techno", "trance", "house", "dubstep",
@@ -141,6 +149,7 @@ GENRE_RULES = (
             "jungle", "glitch", "electro", "synth", "arpeggio", "sequencer", "acid", "eurobeat",
             "hyperpop", "nightcore", "city pop", "disco", "迪斯科", "ambient", "lofi", "lo-fi",
             "chill", "808", "jersey club", "赛博", "mix", "miraidempa", "未来電波", "未来电波",
+            "daft punk", "蠢朋克",
             "合成器浪潮", "合成器", "hardtekk", "tekk", "funkot", "astro slide", "frums", "⚡")),
     ("民族", ("民谣", "民歌", "童谣", "儿歌", "摇篮曲", "蒙古", "呼麦", "维语", "藏语", "侗族",
                "苗族", "彝族", "三弦", "马头琴", "古琴", "古筝", "琵琶", "笛子", "二胡", "箫", "埙",
@@ -159,7 +168,7 @@ GENRE_RULES = (
                "经典", "老歌", "怀旧", "情歌", "神曲", "网络歌曲", "抖音", "ballad", "pop", "r&b",
                "soul", "女声", "男声", "hi-res", "hires", "黑胶", "百万级", "试听", "无损", "发烧", "推荐", "循环", "必听", "单曲",
                "cd音质", "磁带音质", "remastered", "录音棚", "豪装", "大声听", "jlrs",
-               "字幕", "中字", "双语", "熟肉", "official video", "official audio", "music video",
+               "official video", "official audio", "music video",
                "just the two of us", "tom cardy", "bo burnham", "nina simone", "bill withers",
                "lemon tree", "英文歌", "日语歌", "daisy bell", "布施明", "李叔同", "送别", "imase")),
 )
@@ -290,13 +299,21 @@ def _hit(word, haystack):
 
 
 def classify_genre(title, artist, album, side=""):
-    fields = tuple(str(part or "").lower() for part in (title, artist, album, side))
-    for label, words in GENRE_RULES:
-        if any(_hit(word, part) for word in words for part in fields):
-            return label
+    """先读「这首歌叫什么」，读不出来才读「谁传的」。
+
+    作者名和盘架（--bili 模式下就是作者名）全是坑：夜空星MC 不是说唱、出格字幕组不是流行、
+    东方没有胡桃不是东方 Project、最佳金曲也不是流行。所以字段分两趟用——曲名和视频标题
+    先跑完整套规则，一个都没命中才换作者名再跑一遍。
+    """
+    what = tuple(str(part or "").lower() for part in (title, album))
+    who = tuple(str(part or "").lower() for part in (artist, side))
+    for fields in (what, who):
+        for label, words in GENRE_RULES:
+            if any(_hit(word, part) for word in words for part in fields):
+                return label
     # 兜底：这批缓存里的西里尔字母标题几乎都是苏/德系军歌（《哎，小苹果》那一类），
     # 而它们一个中文关键词都不带。只在别的规则全落空时才这么判。
-    if any("Ѐ" <= c <= "я" for part in fields for c in part):
+    if any("Ѐ" <= c <= "я" for part in what + who for c in part):
         return "红歌"
     return GENRE_FALLBACK
 
@@ -595,6 +612,9 @@ def main():
         max_minutes = BILI_MAX_MINUTES if args.bili else 0
 
     found, warnings = collect(folder, args.bili)
+    banned = {t["key"] for t in found if any(t["key"].startswith(p) for p in DROP_KEYS)}
+    dropped = [t for t in found if t["key"] in banned]
+    found = [t for t in found if t["key"] not in banned]
     tracks, short, long_runs = by_length(found, min_seconds, max_minutes, args.keep_long)
 
     if not tracks:
@@ -624,6 +644,10 @@ def main():
     except ValueError:
         shown = args.out
     print(f"sides: {len({t['side'] for t in tracks})}   output: {shown}")
+
+    if dropped:
+        print(f"按名单剔除 {len(dropped)} 首（改 tools/music_manifest.py 里的 DROP_KEYS）")
+        show("拉黑", dropped)
 
     if short or long_runs:
         rule = f"短于 {min_seconds:g}s" if min_seconds else ""

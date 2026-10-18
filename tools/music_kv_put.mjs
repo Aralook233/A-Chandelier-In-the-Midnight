@@ -15,7 +15,7 @@
 //     node tools/music_kv_put.mjs --stage F:\BilibiliCache\music-stage
 //
 // 断点续传：开跑前列一遍每个 namespace 已有的 key，已存在的跳过，所以中途断了直接重跑
-// 同一条命令。KV 免费档每天 1000 次写，本库约 886 个 key，一趟够；超了就自动只写前
+// 同一条命令。KV 免费档每天 1000 次写，本库约 885 个 key，一趟够；超了就自动只写前
 // 1000 个，第二天再跑同一条命令接着传。
 
 import { open, stat } from 'node:fs/promises';
