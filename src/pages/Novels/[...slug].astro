@@ -38,20 +38,6 @@ const chapters = (await getCollection('novels'))
 const currentIndex = chapters.findIndex((chapter) => chapter.id === entry.id);
 const previousChapter = chapters[currentIndex - 1];
 const nextChapter = chapters[currentIndex + 1];
-const musicDirectory = new URL('../../../public/music', import.meta.url);
-const allowedAudioExtensions = /\.(mp3|wav|m4a|ogg|aac|flac|mid|midi|opus|webm)$/i;
-let musicFiles = [];
-try {
-  const fs = await import('node:fs/promises');
-  const items = await fs.readdir(musicDirectory, { withFileTypes: true });
-  musicFiles = items
-    .filter((item) => item.isFile())
-    .map((item) => item.name)
-    .filter((name) => allowedAudioExtensions.test(name))
-    .sort();
-} catch {
-  musicFiles = [];
-}
 const { Content } = await render(entry);
 ---
 
@@ -530,7 +516,7 @@ const { Content } = await render(entry);
 
         <a class="home-link" href="/" aria-label="返回主页">← 回到主页</a>
 
-        <RadioPlayer musicFiles={musicFiles} />
+        <RadioPlayer />
 
         <h2>章节列表</h2>
         {chapterPartOrder.map((part) => {

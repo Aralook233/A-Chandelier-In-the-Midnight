@@ -1,8 +1,10 @@
-"""Regenerate the two unicode-range faces of the LXGW WenKai webfont.
+"""Regenerate the three unicode-range faces of the LXGW WenKai webfont.
 
-  core  -> every glyph the site renders today; downloaded on first visit
-  fill  -> the remaining GB2312 glyphs; only fetched once a page actually
-           renders a character the core cannot draw
+  core   -> every glyph the pages paint; downloaded on first visit
+  music  -> only the glyphs a track title / artist / shelf can paint; a browser
+            fetches this face the first time the 节目单 actually renders a row
+  fill   -> the remaining GB2312 glyphs; only fetched once a page renders a
+            character neither face above can draw
 
 Writes hashed woff2 files into public/fonts and rewrites
 src/styles/story-font.css, which is what the pages import.
@@ -13,11 +15,13 @@ File names embed a content hash so /fonts/* can be cached immutably. The core
 face must cover what the browser actually paints, and Markdown turns straight
 quotes into typographic ones, so the character set is read from dist/**.html
 when a build is present: run `npm run build`, then this tool, then build again.
-Re-run it after adding chapters, and after tools/music_manifest.py rewrites
-src/data/music.json (track titles render as text too). Licence: OFL 1.1, at /fonts/OFL.txt.
+Re-run it after adding chapters. The track list is deliberately NOT part of core:
+700 B 站 titles add over a thousand glyphs, and folding them in would double what
+every reader downloads just to read prose. Licence: OFL 1.1, at /fonts/OFL.txt.
 """
 
 import hashlib
+import json
 import os
 import re
 import subprocess
@@ -28,6 +32,8 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT_DIR = ROOT / "public" / "fonts"
 CSS = ROOT / "src" / "styles" / "story-font.css"
 SUFFIXES = {".md", ".astro", ".ts", ".mjs", ".json"}
+MUSIC = ROOT / "src" / "data" / "music.mjs"
+MUSIC_FIELDS = ("title", "artist", "album", "side")
 # Typographic characters the Markdown renderer can substitute at build time.
 TYPOGRAPHY = "“”‘’«»–—…′″"
 
@@ -52,11 +58,29 @@ def visible_html_text(html):
 def corpus_chars():
     chars = {chr(c) for c in range(0x20, 0x7F)} | set(TYPOGRAPHY)
     for path in list((ROOT / "src").rglob("*")):
-        if path.is_file() and path.suffix in SUFFIXES:
+        if path.is_file() and path.suffix in SUFFIXES and path.resolve() != MUSIC:
             chars.update(path.read_text(encoding="utf-8", errors="ignore"))
     # The rendered build is the ground truth for what a reader's browser paints.
     for path in list((ROOT / "dist").rglob("*.html")) if (ROOT / "dist").is_dir() else []:
         chars.update(visible_html_text(path.read_text(encoding="utf-8", errors="ignore")))
+    return {c for c in chars if not ("\ud800" <= c <= "\udfff")}
+
+
+def music_chars():
+    """What a crate row can paint: the four text fields, nothing else from the manifest."""
+    if not MUSIC.is_file():
+        return set()
+    chars = set()
+    for line in MUSIC.read_text(encoding="utf-8", errors="ignore").splitlines():
+        text = line.strip().rstrip(",")
+        if not text.startswith("{"):
+            continue
+        try:
+            track = json.loads(text)
+        except ValueError:
+            continue
+        for field in MUSIC_FIELDS:
+            chars.update(str(track.get(field) or ""))
     return {c for c in chars if not ("\ud800" <= c <= "\udfff")}
 
 
@@ -160,7 +184,10 @@ def main():
         raise SystemExit(f"no such font: {src}")
 
     core = corpus_chars()
-    fill = (core | gb2312_rows(0xA1, 0xA9) | gb2312_rows(0xB0, 0xD7) | gb2312_rows(0xD8, 0xF7)) - core
+    music = music_chars() - core
+    fill = (core | music
+            | gb2312_rows(0xA1, 0xA9) | gb2312_rows(0xB0, 0xD7) | gb2312_rows(0xD8, 0xF7)
+            ) - core - music
     if not core or not fill:
         raise SystemExit("unexpectedly empty character set")
 
@@ -168,17 +195,34 @@ def main():
         stale.unlink()
 
     core_name, core_size = subset(core, "core", src)
+    music_name, music_size = subset(music, "music", src) if music else ("", 0)
     fill_name = subset(fill, "fill", src)[0]
+
+    music_face = ""
+    if music_name:
+        music_face = f"""@font-face {{
+  font-family: 'LXGW Story';
+  src: url('/fonts/{music_name}') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: {range_text(music, exclude=core)};
+}}
+
+"""
 
     CSS.write_text(
         f"""/*
- * 霞鹜文楷 / LXGW WenKai, two unicode-range faces of one family.
- *   lxgw-core  every glyph the site renders today ({core_size / 1048576:.2f} MB)
- *   lxgw-fill  the rest of GB2312, fetched only when a page renders a character
- *              the core does not carry ({len(fill):,} chars)
- * The two ranges are disjoint on purpose: with overlapping unicode-ranges browsers
+ * 霞鹜文楷 / LXGW WenKai, three unicode-range faces of one family.
+ *   lxgw-core   every glyph the prose paints ({core_size / 1048576:.2f} MB)
+ *   lxgw-music  only the glyphs a 节目单 row can paint ({music_size / 1048576:.2f} MB, {len(music):,} chars):
+ *               readers who never open the crate never download it, and readers who
+ *               do get it instead of the 1.4 MB fill face
+ *   lxgw-fill   the rest of GB2312, fetched only when a page renders a character
+ *               neither face above carries ({len(fill):,} chars)
+ * The ranges are disjoint on purpose: with overlapping unicode-ranges browsers
  * download both faces and the split saves nothing. public/_headers pins
- * `font-src 'self'`, hence self-hosted, and both names embed a content hash so
+ * `font-src 'self'`, hence self-hosted, and every name embeds a content hash so
  * /fonts/* caches immutably. Licence: OFL 1.1, at /fonts/OFL.txt.
  */
 @font-face {{
@@ -187,10 +231,10 @@ def main():
   font-weight: 400;
   font-style: normal;
   font-display: swap;
-  unicode-range: {range_text(fill, 24, exclude=core)};
+  unicode-range: {range_text(fill, 24, exclude=core | music)};
 }}
 
-@font-face {{
+{music_face}@font-face {{
   font-family: 'LXGW Story';
   src: url('/fonts/{core_name}') format('woff2');
   font-weight: 400;

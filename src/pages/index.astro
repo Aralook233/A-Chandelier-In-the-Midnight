@@ -23,20 +23,6 @@ const chaptersByPart = partOrder.map((part) => ({
   chapters: entries.filter((entry) => entry.data.part === part),
 }));
 const featuredChapter = entries[0] ?? null;
-const musicDirectory = new URL('../../public/music', import.meta.url);
-const allowedAudioExtensions = /\.(mp3|wav|m4a|ogg|aac|flac|mid|midi|opus|webm)$/i;
-let musicFiles = [];
-try {
-  const fs = await import('node:fs/promises');
-  const items = await fs.readdir(musicDirectory, { withFileTypes: true });
-  musicFiles = items
-    .filter((item) => item.isFile())
-    .map((item) => item.name)
-    .filter((name) => allowedAudioExtensions.test(name))
-    .sort();
-} catch {
-  musicFiles = [];
-}
 ---
 
 <html lang="zh-CN">
@@ -1139,7 +1125,7 @@ try {
           <div class="brand-cn">《吊灯》</div>
         </div>
 
-        <RadioPlayer musicFiles={musicFiles} />
+        <RadioPlayer />
 
         <div class="sidebar-header">
           <span>卷目目录</span>

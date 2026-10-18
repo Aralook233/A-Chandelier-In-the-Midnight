@@ -9,7 +9,9 @@
     "dev": "astro dev",
     "build": "astro build",
     "check:csp": "node tools/csp-guard.mjs",
-    "verify": "astro build && node tools/csp-guard.mjs && node tests/functions.security.test.mjs",
+    "test:functions": "node tests/functions.security.test.mjs",
+    "test:track": "node tests/track.test.mjs",
+    "verify": "astro build && node tools/csp-guard.mjs && node tests/functions.security.test.mjs && node tests/track.test.mjs",
     "icons": "node tools/make-icons.mjs",
     "preview": "astro preview",
     "astro": "astro"

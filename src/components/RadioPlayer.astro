@@ -1,10 +1,9 @@
 ---
 interface Props {
-  musicFiles: string[];
   caption?: string;
 }
 
-const { musicFiles, caption = '电台' } = Astro.props;
+const { caption = '电台' } = Astro.props;
 ---
 
 <div class="radio-panel">
@@ -76,19 +75,36 @@ const { musicFiles, caption = '电台' } = Astro.props;
     </div>
 
     <div class="radio-deck">
-      <label class="radio-field">
-        <span class="radio-field-name">频道</span>
-        <select class="radio-select" id="musicSelect" aria-label="选择播放频道">
-          <option value="">请选择频道</option>
-          {musicFiles.map((fileName) => (
-            <option value={`/music/${encodeURIComponent(fileName)}`}>{fileName}</option>
-          ))}
-        </select>
-      </label>
-      <label class="radio-upload">
-        <input id="musicUpload" type="file" accept=".mp3,.wav,.m4a,.ogg,.aac,.flac,.mid,.midi,.opus,.webm,audio/*" />
-        <span>接入本机节目</span>
-      </label>
+      <div class="radio-deck-row">
+        <button class="radio-crate-toggle" data-crate-toggle type="button" aria-expanded="false" aria-controls="radioCrate">
+          节目单
+        </button>
+        <label class="radio-upload">
+          <input id="musicUpload" type="file" accept=".mp3,.wav,.m4a,.ogg,.aac,.flac,.mid,.midi,.opus,.webm,audio/*" />
+          <span>接入本机节目</span>
+        </label>
+      </div>
+
+      <div class="radio-crate" id="radioCrate" data-crate hidden>
+        <div class="crate-filter">
+          <label class="radio-field">
+            <span class="radio-field-name">归类</span>
+            <select class="radio-select" data-side aria-label="按归类筛选"></select>
+          </label>
+          <label class="radio-field">
+            <span class="radio-field-name">检索</span>
+            <input class="radio-search" data-search type="search" placeholder="曲名 / 作者" aria-label="检索曲目" autocomplete="off" />
+          </label>
+        </div>
+
+        <ul class="crate-list" data-list></ul>
+
+        <div class="crate-pager">
+          <button class="crate-step" data-prev type="button" aria-label="上一页">◀</button>
+          <span class="crate-count" data-count>打开节目单以载入曲目</span>
+          <button class="crate-step" data-next type="button" aria-label="下一页">▶</button>
+        </div>
+      </div>
     </div>
 
     <audio id="musicPlayer" class="radio-audio" preload="none"></audio>
@@ -604,6 +620,13 @@ const { musicFiles, caption = '电台' } = Astro.props;
     margin-top: 10px;
   }
 
+  /* 节目单按钮和本机接入并排：两个都是「换带子」的动作，同一层就好。 */
+  .radio-deck-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 8px;
+  }
+
   .radio-field {
     display: flex;
     align-items: center;
@@ -618,6 +641,8 @@ const { musicFiles, caption = '电台' } = Astro.props;
   }
 
   .radio-select,
+  .radio-search,
+  .radio-crate-toggle,
   .radio-upload span {
     min-width: 0;
     padding: 8px 10px;
@@ -628,7 +653,8 @@ const { musicFiles, caption = '电台' } = Astro.props;
     font-size: 0.8rem;
   }
 
-  .radio-select {
+  .radio-select,
+  .radio-search {
     flex: 1;
     width: 100%;
   }
@@ -638,8 +664,153 @@ const { musicFiles, caption = '电台' } = Astro.props;
     color: var(--print);
   }
 
+  .radio-search::placeholder {
+    color: var(--print-dim);
+  }
+
+  .radio-crate-toggle {
+    letter-spacing: 0.12em;
+    cursor: pointer;
+    box-shadow: 3px 3px 0 rgba(238, 232, 218, 0.16);
+    transition: translate 0.16s linear, box-shadow 0.16s linear, border-color 0.16s linear;
+  }
+
+  .radio-crate-toggle:hover,
+  :global(.crate-row):hover {
+    border-color: var(--onair);
+    box-shadow: 3px 3px 0 var(--onair);
+  }
+
+  .radio-crate-toggle:active,
+  :global(.crate-row):active {
+    translate: 3px 3px;
+    box-shadow: none;
+  }
+
+  /* 打开的货舱按钮压成实心红边，一眼看出现在看的是节目单还是旋钮。 */
+  .radio-crate-toggle[aria-expanded='true'] {
+    border-color: var(--onair);
+    box-shadow: none;
+    translate: 3px 3px;
+  }
+
+  .radio-crate-toggle:focus-visible,
+  :global(.crate-row):focus-visible,
+  .radio-search:focus-visible,
+  .crate-step:focus-visible {
+    outline: 2px solid var(--onair);
+    outline-offset: 2px;
+  }
+
+  .radio-crate {
+    padding: 8px;
+    border: 1px solid var(--print-dim);
+    background: var(--deck-sunk);
+  }
+
+  .crate-filter {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  /* 一次只排 20 行，列表本身还能滚；700 首的 DOM 永远不进页面。 */
+  .crate-list {
+    display: grid;
+    gap: 4px;
+    max-height: 320px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    overflow-y: auto;
+  }
+
+  /* 行是脚本造出来插进 DOM 的，拿不到 Astro 的 cid 属性，所以这一段必须走 :global；
+     写进页面自己的 <style> 也行，但电台是组件，不该拆到两处。 */
+  :global(.crate-row) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 3px;
+    align-items: baseline;
+    width: 100%;
+    min-height: 44px;
+    padding: 8px 10px;
+    border: 1px solid transparent;
+    background: var(--deck);
+    color: var(--print);
+    font: inherit;
+    font-size: 0.78rem;
+    text-align: left;
+    cursor: pointer;
+    box-shadow: 3px 3px 0 rgba(238, 232, 218, 0.16);
+    transition: translate 0.16s linear, box-shadow 0.16s linear, border-color 0.16s linear;
+  }
+
+  /* 货舱在手机上只有 210px 宽：把「作者 · 时长」放在标题下面一行，而不是并排抢宽度。
+     并排时标题列被挤到 31px，一行两个字，一首歌摊成六行。超过三行才截，
+     完整曲名在「ON AIR」那行还在。 */
+  :global(.crate-title) {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    overflow: hidden;
+  }
+
+  :global(.crate-meta) {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    color: var(--print-dim);
+  }
+
+  /* 正在放的那一行：整圈红边，和「ON AIR」同一个语言。 */
+  :global(.crate-row.is-current) {
+    border-color: var(--onair);
+    background: var(--deck-sunk);
+  }
+
+  .crate-pager {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+    margin-top: 8px;
+  }
+
+  .crate-step {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 6px 10px;
+    border: 1px solid var(--print-dim);
+    background: var(--deck);
+    color: var(--print);
+    font: inherit;
+    font-size: 0.72rem;
+    cursor: pointer;
+  }
+
+  .crate-step:disabled {
+    color: var(--print-dim);
+    cursor: default;
+    opacity: 0.5;
+  }
+
+  .crate-count {
+    font-size: 0.66rem;
+    letter-spacing: 0.12em;
+    text-align: center;
+    color: var(--print-dim);
+  }
+
   .radio-upload {
-    display: block;
+    display: flex;
     cursor: pointer;
   }
 
@@ -650,9 +821,12 @@ const { musicFiles, caption = '电台' } = Astro.props;
     opacity: 0;
   }
 
+  /* flex 而不是 block+text-align：手机端把最小高度抬到 44px 之后字才真的居中。 */
   .radio-upload span {
-    display: block;
-    text-align: center;
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
     box-shadow: 3px 3px 0 rgba(238, 232, 218, 0.16);
     transition: translate 0.16s linear, box-shadow 0.16s linear, border-color 0.16s linear;
   }
@@ -685,6 +859,14 @@ const { musicFiles, caption = '电台' } = Astro.props;
       min-height: 44px;
     }
 
+    /* 货舱那一排同理：默认 35px 高的按钮和输入框，手指一碰就变成滚动。 */
+    .radio-crate-toggle,
+    .radio-select,
+    .radio-search,
+    .radio-upload span {
+      min-height: 44px;
+    }
+
     /* 切换波形/频谱的按钮浮在示波窗右下角，原来只有 19px 高，手指一碰就变成滚动，
        频谱模式根本切不进去。触屏上给它一个够按的方块。 */
     .radio-scope-toggle {
@@ -698,6 +880,8 @@ const { musicFiles, caption = '电台' } = Astro.props;
   @media (prefers-reduced-motion: reduce) {
     .radio-needle,
     .radio-btn,
+    .radio-crate-toggle,
+    :global(.crate-row),
     .radio-upload span {
       transition: none;
     }
@@ -715,7 +899,6 @@ const { musicFiles, caption = '电台' } = Astro.props;
 
   const shell = document.querySelector<HTMLElement>('[data-shell]');
   const audio = document.getElementById('musicPlayer') as HTMLAudioElement | null;
-  const select = document.getElementById('musicSelect') as HTMLSelectElement | null;
   const upload = document.getElementById('musicUpload') as HTMLInputElement | null;
 
   if (shell && audio) {
@@ -1051,6 +1234,196 @@ const { musicFiles, caption = '电台' } = Astro.props;
       startLoop();
     }
 
+    // 节目单。700 首不做成 <option>：手机上滚不动，也看不出哪行正在放。
+    // 清单本体在 /music/tracks.json，只在这块货舱第一次被打开时才 fetch，
+    // 44 个页面的 HTML 都不为它买单。
+    const crate = pick('crate') as HTMLElement | null;
+    const crateToggle = pick('crate-toggle') as HTMLButtonElement | null;
+    const sideSelect = pick('side') as HTMLSelectElement | null;
+    const searchInput = pick('search') as HTMLInputElement | null;
+    const crateList = pick('list') as HTMLElement | null;
+    const prevBtn = pick('prev') as HTMLButtonElement | null;
+    const nextBtn = pick('next') as HTMLButtonElement | null;
+    const countLabel = pick('count') as HTMLElement | null;
+
+    type CrateTrack = {
+      id: string;
+      title: string;
+      artist: string;
+      side: string;
+      duration: number;
+      format: string;
+    };
+
+    const CRATE_PAGE = 20;
+    const CRATE_SHELVES = 40;
+    const CRATE_ID = /^[0-9a-f]{12}$/;
+    let crateTracks: CrateTrack[] = [];
+    let crateView: CrateTrack[] = [];
+    let cratePage = 0;
+    let crateRequested = false;
+    let onAirId = '';
+    // 切断（⏏）之后按 ▶ 要能回到同一盘带子，所以最后一次的选择单独记着。
+    let onAirTape: { url: string; label: string } | null = null;
+
+    function crateLabel(track: CrateTrack) {
+      return track.artist ? `${track.title} — ${track.artist}` : track.title;
+    }
+
+    // 来自一次网络读取，字段全都不作保证：逐条校验，坏条目丢掉而不是让整块货舱报错。
+    function readCrateTrack(value: unknown): CrateTrack | null {
+      if (!value || typeof value !== 'object') return null;
+      const raw = value as Record<string, unknown>;
+      if (typeof raw.id !== 'string' || !CRATE_ID.test(raw.id)) return null;
+      if (typeof raw.title !== 'string' || !raw.title) return null;
+      return {
+        id: raw.id,
+        title: raw.title,
+        artist: typeof raw.artist === 'string' ? raw.artist : '',
+        side: typeof raw.side === 'string' && raw.side ? raw.side : '未分类',
+        duration: Number.isFinite(raw.duration) ? Number(raw.duration) : 0,
+        format: typeof raw.format === 'string' ? raw.format.toLowerCase() : '',
+      };
+    }
+
+    async function loadCrate() {
+      if (crateRequested) return;
+      crateRequested = true;
+      if (countLabel) countLabel.textContent = '节目单读取中…';
+      const payload = await fetch('/music/tracks.json', { headers: { accept: 'application/json' } })
+        .then((response) => (response.ok ? response.json() : Promise.reject(new Error(response.status))))
+        .catch(() => null);
+
+      if (!payload) {
+        crateRequested = false; // 让下次点开还能重试，别一次失败就把货舱焊死
+        fillSides();
+        if (countLabel) countLabel.textContent = '节目单读取失败，再点开一次重试';
+        return;
+      }
+
+      const list: unknown[] = payload && Array.isArray(payload.tracks) ? payload.tracks : [];
+      crateTracks = list.map(readCrateTrack).filter((track): track is CrateTrack => track !== null);
+      fillSides();
+      applyCrateFilter();
+    }
+
+    function fillSides() {
+      if (!sideSelect) return;
+      const counts = new Map<string, number>();
+      for (const track of crateTracks) counts.set(track.side, (counts.get(track.side) ?? 0) + 1);
+      // 700 首会摊出 450 个货架，下拉里塞 450 项没人滚得动：只列成排的（≥2 首），
+      // 按曲目数从多到少排，最多 40 个。落单的那位用检索框找——检索也匹配货架名。
+      const shelves = [...counts.entries()]
+        .filter(([, count]) => count > 1)
+        .sort((a, b) => (b[1] - a[1]) || a[0].localeCompare(b[0], 'zh-Hans-CN'))
+        .slice(0, CRATE_SHELVES);
+      sideSelect.textContent = '';
+      sideSelect.append(new Option(crateTracks.length ? `全部归类 · ${crateTracks.length} 首` : '暂无归类', ''));
+      for (const [side, count] of shelves) sideSelect.append(new Option(`${side} · ${count}`, side));
+      sideSelect.disabled = shelves.length < 2;
+    }
+
+    function applyCrateFilter() {
+      const side = sideSelect ? sideSelect.value : '';
+      const needle = (searchInput ? searchInput.value : '').trim().toLowerCase();
+      crateView = crateTracks.filter((track) => {
+        if (side && track.side !== side) return false;
+        if (!needle) return true;
+        return `${track.title} ${track.artist} ${track.side}`.toLowerCase().includes(needle);
+      });
+      cratePage = 0;
+      renderCrate();
+    }
+
+    function renderCrate() {
+      if (!crateList) return;
+      const pages = Math.max(1, Math.ceil(crateView.length / CRATE_PAGE));
+      cratePage = Math.min(Math.max(cratePage, 0), pages - 1);
+      const start = cratePage * CRATE_PAGE;
+      // 标题是标签里的字符串，只进 textContent，一次 innerHTML 都不给。
+      crateList.textContent = '';
+      for (const track of crateView.slice(start, start + CRATE_PAGE)) {
+        const row = document.createElement('li');
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'crate-row';
+        button.dataset.id = track.id;
+        if (track.id === onAirId) button.classList.add('is-current');
+        const title = document.createElement('span');
+        title.className = 'crate-title';
+        title.textContent = track.title;
+        const meta = document.createElement('span');
+        meta.className = 'crate-meta';
+        meta.textContent = track.artist ? `${track.artist} · ${clock(track.duration)}` : clock(track.duration);
+        button.append(title, meta);
+        row.append(button);
+        crateList.append(row);
+      }
+
+      const total = crateView.length;
+      if (countLabel) {
+        countLabel.textContent = total
+          ? `${start + 1}–${Math.min(total, start + CRATE_PAGE)} / ${total} 首 · 第 ${cratePage + 1}/${pages} 页`
+          : crateTracks.length
+            ? `没有匹配的曲目（库内共 ${crateTracks.length} 首）`
+            : '货舱是空的：跑 tools/music_manifest.py 把曲目上到节目单';
+      }
+      if (prevBtn) prevBtn.disabled = cratePage <= 0;
+      if (nextBtn) nextBtn.disabled = cratePage + 1 >= pages;
+    }
+
+    function tuneIn(track: CrateTrack) {
+      onAirId = track.id;
+      const url = `/track/${track.id}`;
+      const label = crateLabel(track);
+      if (track.format === 'mid' || track.format === 'midi') {
+        // MIDI 走合成器，不经 audio 元素，▶ 恢复不了它的断点，所以不记成磁带。
+        onAirTape = null;
+        void takeMidi(url, label);
+      } else {
+        onAirTape = { url, label };
+        useTape(url, label);
+      }
+      renderCrate();
+    }
+
+    function revealCrate() {
+      if (!crate || !crateToggle) return;
+      crate.removeAttribute('hidden');
+      crateToggle.setAttribute('aria-expanded', 'true');
+      void loadCrate();
+    }
+
+    crateToggle?.addEventListener('click', () => {
+      if (!crate) return;
+      if (crate.hasAttribute('hidden')) {
+        revealCrate();
+        return;
+      }
+      crate.setAttribute('hidden', '');
+      crateToggle?.setAttribute('aria-expanded', 'false');
+    });
+
+    sideSelect?.addEventListener('change', applyCrateFilter);
+    searchInput?.addEventListener('input', applyCrateFilter);
+    prevBtn?.addEventListener('click', () => {
+      cratePage -= 1;
+      renderCrate();
+    });
+    nextBtn?.addEventListener('click', () => {
+      cratePage += 1;
+      renderCrate();
+    });
+
+    // 委托在列表上：翻页会整片换掉行，逐个绑定不是漏绑就是泄漏。
+    crateList?.addEventListener('click', (event) => {
+      const row = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>('.crate-row');
+      if (!row || !crateList.contains(row)) return;
+      const track = crateView.find((item) => item.id === row.dataset.id);
+      if (!track) return;
+      tuneIn(track);
+    });
+
     audio.volume = volumeInput ? Number(volumeInput.value) / 100 : 0.8;
 
     audio.addEventListener('play', () => {
@@ -1095,8 +1468,10 @@ const { musicFiles, caption = '电台' } = Astro.props;
         return;
       }
       if (audio.paused) {
-        if (!audio.currentSrc && select?.value) useTape(select.value);
-        else void audio.play().catch(() => {});
+        // 空着按 ▶：不把上一次的选择悄悄重放一遍，而是把节目单摊开让人挑。
+        if (audio.currentSrc) void audio.play().catch(() => {});
+        else if (onAirTape) useTape(onAirTape.url, onAirTape.label);
+        else revealCrate();
       } else {
         audio.pause();
       }
@@ -1118,8 +1493,10 @@ const { musicFiles, caption = '电台' } = Astro.props;
     });
 
     ejectBtn?.addEventListener('click', () => {
-      if (select) select.value = '';
+      onAirId = '';
+      onAirTape = null;
       useTape('');
+      renderCrate();
     });
 
     scopeToggle?.addEventListener('click', () => {
@@ -1153,29 +1530,21 @@ const { musicFiles, caption = '电台' } = Astro.props;
       seeking = false;
     });
 
-    select?.addEventListener('change', () => {
-      const value = select.value;
-      // Only site tapes and locally picked files may be loaded.
-      if (value && !(value.startsWith('/music/') || value.startsWith('blob:'))) return;
-      useTape(value);
-    });
-
     upload?.addEventListener('change', () => {
       const file = upload.files && upload.files[0];
       if (!file) return;
       const label = `本地：${file.name}`;
-      // blob: 地址没有扩展名，MIDI 直接把 File 交给解析器，不进磁带下拉。
+      // 本机带子不在节目单上：红条和「按 ▶ 回到上一盘」的记忆都要让位给它。
+      onAirId = '';
+      onAirTape = null;
+      // blob: 地址没有扩展名可看，MIDI 直接把 File 本体交给解析器。
       if (isMidiName(file.name)) {
-        if (select) select.value = '';
         void takeMidi(file, label);
+        renderCrate();
         return;
       }
-      const objectUrl = URL.createObjectURL(file);
-      if (select) {
-        select.appendChild(new Option(label, objectUrl, false, true));
-        select.value = objectUrl;
-      }
-      useTape(objectUrl, label);
+      useTape(URL.createObjectURL(file), label);
+      renderCrate();
     });
 
     window.addEventListener('resize', () => {
