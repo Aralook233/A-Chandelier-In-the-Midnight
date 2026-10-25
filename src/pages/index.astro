@@ -817,21 +817,7 @@ const featuredChapter = entries[0] ?? null;
         text-transform: uppercase;
       }
 
-      /* 顶部入口和底部「支持我们」都跟着本页已有的胶囊语言走，
-         免得一个链接看起来像从别的站点贴过来的。 */
-      .topbar-link {
-        display: inline-flex;
-        align-items: center;
-        margin-right: 10px;
-        border: 1px solid var(--line);
-        border-radius: 999px;
-        background: rgba(var(--tint-rgb), 0.2);
-        color: var(--ink);
-        padding: 8px 14px;
-        font-size: 0.78rem;
-        letter-spacing: 0.08em;
-        white-space: nowrap;
-      }
+      /* 底部「支持我们」跟着本页已有的胶囊语言走，免得一个链接看起来像从别的站点贴过来的。 */
 
       .support-strip {
         display: flex;
@@ -859,6 +845,23 @@ const featuredChapter = entries[0] ?? null;
         white-space: nowrap;
       }
 
+      /* 音乐工作室是站内玩具，跟正文没关系，所以缩成底部一枚小标签；
+         从 /studio/ 自己有回去的链接，不怕人困在里面。 */
+      .support-strip a.support-lab {
+        min-height: 34px;
+        padding: 5px 11px;
+        border-color: var(--line);
+        background: transparent;
+        color: var(--ink-soft);
+        font-size: 0.72rem;
+      }
+
+      .support-strip a.support-lab:hover,
+      .support-strip a.support-lab:focus-visible {
+        border-color: var(--line-strong);
+        color: var(--ink);
+      }
+
       @media (max-width: 1100px) {
         .app-shell {
           gap: 22px;
@@ -879,6 +882,11 @@ const featuredChapter = entries[0] ?? null;
         .volume-toggle,
         .auth-button,
         .theme-toggle {
+          min-height: 44px;
+        }
+
+        /* 小标签在鼠标下缩到 34px，手指底下还是回到 44px 的格子，只是窄一点。 */
+        .support-strip a.support-lab {
           min-height: 44px;
         }
 
@@ -1038,8 +1046,7 @@ const featuredChapter = entries[0] ?? null;
         }
 
         .auth-button,
-        .theme-toggle,
-        .topbar-link {
+        .theme-toggle {
           padding: 10px 12px;
           font-size: 0.78rem;
         }
@@ -1067,7 +1074,6 @@ const featuredChapter = entries[0] ?? null;
   <body>
     <header class="topbar" aria-label="顶部导航">
       <div class="topbar-inner">
-        <a class="topbar-link" href="/studio/">音乐工作室</a>
         <button class="theme-toggle" id="themeToggle" type="button" data-theme-toggle aria-pressed="false">深色</button>
         <span class="account-chip auth-button" id="accountChip" hidden></span>
         <button class="auth-button" id="openAuthButton" type="button">登录 / 注册</button>
@@ -1210,9 +1216,10 @@ const featuredChapter = entries[0] ?? null;
           <div class="discussion-list" id="discussionList"></div>
         </section>
 
-        <section class="support-strip" aria-label="支持我们">
+        <section class="support-strip" aria-label="支持我们与站内入口">
           <span>说句实话：给联合国捐款比给我们有用。</span>
           <a href="https://www.unonline.org/zh/about-us/how-to-donate-to-the-un-system.html" target="_blank" rel="noopener noreferrer">支持我们</a>
+          <a class="support-lab" href="/studio/">音乐工作室</a>
         </section>
       </main>
     </div>
