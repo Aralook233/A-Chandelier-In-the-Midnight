@@ -413,9 +413,34 @@ const featuredChapter = entries[0] ?? null;
       .chapter-title {
         display: inline-flex;
         align-items: center;
+        flex-wrap: wrap;
+        gap: 6px;
         min-height: 32px;
         font-size: 0.8rem;
         line-height: 1.5;
+      }
+
+      /* 阅读记录存在本机，所以这些标记由脚本贴：读到几成、读完了、以及现在在哪一章。
+         JS 造出来的节点没有本页的 scope 属性，选择器必须包 :global 才命中（和正文
+         里的 Markdown 标签同一个坑）。 */
+      .chapter-item.is-current {
+        border-color: var(--motion-accent);
+      }
+
+      :global(.chapter-mark) {
+        padding: 2px 7px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--chip-bg);
+        color: var(--ink-soft);
+        font-size: 0.66rem;
+        letter-spacing: 0.05em;
+        white-space: nowrap;
+      }
+
+      :global(.chapter-mark.is-progress) {
+        border-color: var(--line-strong);
+        color: var(--ink);
       }
 
       .main-column {
@@ -1140,7 +1165,7 @@ const featuredChapter = entries[0] ?? null;
 
         <div class="volume-tree">
           {chaptersByPart.map(({ part, chapters }) => (
-            <div class={`volume-panel ${part === '第一卷' ? 'is-open' : ''}`}>
+            <div class={`volume-panel ${part === '第一卷' ? 'is-open' : ''}`} data-part={part}>
               <button class="volume-toggle" type="button" aria-expanded={part === '第一卷' ? 'true' : 'false'}>
                 <span class="volume-name">{part}</span>
                 <span class="volume-count">{chapters.length}</span>
@@ -1148,7 +1173,7 @@ const featuredChapter = entries[0] ?? null;
 
               <div class="chapter-list">
                 {chapters.map((chapter) => (
-                  <a class="chapter-item" href={`/Novels/${chapter.id.replace(/\.md$/, '')}`}>
+                  <a class="chapter-item" data-slug={chapter.id.replace(/\.md$/, '')} href={`/Novels/${chapter.id.replace(/\.md$/, '')}`}>
                     <span class="chapter-index">第{chapter.data.chapter}章</span>
                     <span class="chapter-title">{chapter.data.title}</span>
                   </a>
@@ -1173,12 +1198,12 @@ const featuredChapter = entries[0] ?? null;
           <canvas class="tesseract-canvas" id="tesseractCanvas" aria-label="超立方体线框动画"></canvas>
 
           <div class="story-panel">
-            <span class="label">当前卷目</span>
+            <span class="label" id="storyLabel">当前卷目</span>
             {featuredChapter ? (
               <>
-                <h2>{featuredChapter.data.part}</h2>
-                <p>第{featuredChapter.data.chapter}章 · {featuredChapter.data.title}</p>
-                <a href={`/Novels/${featuredChapter.id.replace(/\.md$/, '')}`}>进入正文</a>
+                <h2 id="storyPart">{featuredChapter.data.part}</h2>
+                <p id="storyChapter">第{featuredChapter.data.chapter}章 · {featuredChapter.data.title}</p>
+                <a id="storyLink" href={`/Novels/${featuredChapter.id.replace(/\.md$/, '')}`}>进入正文</a>
               </>
             ) : (
               <>
@@ -1226,6 +1251,7 @@ const featuredChapter = entries[0] ?? null;
 
     <script>
       import { escapeHtml, formatCommentTime, normalizePlainText } from '../utils/sanitize';
+      import { FINISHED_RATIO, readRecord, resumeTarget } from '../utils/reading';
       import { initTheme, toggleTheme } from '../utils/theme';
       import { mountTesseract } from '../utils/tesseract';
       // 管理员删除层：走这个脚本一起打进 /_astro 的外部模块。写成 <script src="…">
@@ -1237,25 +1263,71 @@ const featuredChapter = entries[0] ?? null;
 
       const volumePanels = document.querySelectorAll('.volume-panel');
 
+      // 一次只开一卷。写成函数而不是塞进 click 里，是因为阅读记录也要用它：
+      // 上次读到第几卷，进页面就替读者展开那一卷。
+      function setVolumeOpen(target: Element | null): void {
+        volumePanels.forEach((item) => {
+          const button = item.querySelector('.volume-toggle');
+          const shouldOpen = item === target;
+          item.classList.toggle('is-open', shouldOpen);
+          if (button) button.setAttribute('aria-expanded', String(shouldOpen));
+        });
+      }
+
       volumePanels.forEach((panel) => {
         const toggle = panel.querySelector('.volume-toggle');
         if (!toggle) return;
-
         toggle.addEventListener('click', () => {
-          const shouldOpen = !panel.classList.contains('is-open');
-
-          volumePanels.forEach((item) => {
-            item.classList.remove('is-open');
-            const button = item.querySelector('.volume-toggle');
-            if (button) button.setAttribute('aria-expanded', 'false');
-          });
-
-          if (shouldOpen) {
-            panel.classList.add('is-open');
-            toggle.setAttribute('aria-expanded', 'true');
-          }
+          setVolumeOpen(panel.classList.contains('is-open') ? null : panel);
         });
       });
+
+      // 阅读记录：只存在这台设备的 localStorage 里，服务器上没有任何一份。
+      // 章节页负责写（读到哪算哪），首页负责用——展开那一卷、标出读过几成、
+      // 把「进入正文」换成「继续阅读」。没有记录时整块不动，还是原来那张卡。
+      const chapterItems = [...document.querySelectorAll<HTMLElement>('.chapter-item')];
+      const slugOf = (item: HTMLElement) => item.dataset.slug ?? '';
+      const order = chapterItems.map(slugOf).filter((slug) => slug);
+      const record = readRecord();
+      const resume = resumeTarget(order, record);
+      const resumeItem = resume ? chapterItems.find((item) => slugOf(item) === resume) : undefined;
+
+      if (resumeItem) {
+        setVolumeOpen(resumeItem.closest('.volume-panel'));
+        resumeItem.classList.add('is-current');
+
+        const label = document.getElementById('storyLabel');
+        const partTitle = document.getElementById('storyPart');
+        const chapterLine = document.getElementById('storyChapter');
+        const link = document.getElementById('storyLink');
+        if (label && partTitle && chapterLine && link) {
+          const advancing = resume !== record.last;
+          const mark = record.seen[resume];
+          const volumeName = resumeItem.closest('.volume-panel')?.getAttribute('data-part') ?? '';
+          const index = resumeItem.querySelector('.chapter-index')?.textContent?.trim() ?? '';
+          const name = resumeItem.querySelector('.chapter-title')?.textContent?.trim() ?? '';
+          label.textContent = advancing ? '阅读进度' : '上次阅读';
+          partTitle.textContent = volumeName;
+          chapterLine.textContent = advancing
+            ? `${index} · ${name}`
+            : `${index} · ${name}（读到 ${Math.round((mark?.ratio ?? 0) * 100)}%）`;
+          link.href = resumeItem.href;
+          link.textContent = advancing ? '读下一章' : '继续阅读';
+        }
+      }
+
+      for (const item of chapterItems) {
+        const mark = record.seen[slugOf(item)];
+        // 只翻开过一页的（不到 0.5%）不值得挂个「读到 0%」在标题后面。
+        if (!mark || mark.ratio < 0.005) continue;
+        const title = item.querySelector('.chapter-title');
+        if (!title) continue;
+        const chip = document.createElement('span');
+        const finished = mark.ratio >= FINISHED_RATIO;
+        chip.className = finished ? 'chapter-mark' : 'chapter-mark is-progress';
+        chip.textContent = finished ? '已读' : `读到 ${Math.round(mark.ratio * 100)}%`;
+        title.append(chip);
+      }
 
       const authOpenButton = document.getElementById('openAuthButton');
       const authModal = document.getElementById('authModal');

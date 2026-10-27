@@ -5,7 +5,7 @@
 - 英文名沿用仓库名：Chandelier In the Midnight with an Idoit and a Cup
 - 中文名统一写作：《吊灯》
 
-页面一共四类：章节阅读（`/novels/…`，带阅读进度与订阅源）、留言板（登录后发言，管理员可删）、`/studio/`（一个零依赖的浏览器 DAW，见第 9 节），以及首页那台 80 年代收音机（794 首曲目从私有 KV 流式播放，见第 8 节）。
+页面一共四类：章节阅读（`/novels/…`，带阅读进度、本机续读与订阅源）、留言板（登录后发言，管理员可删）、`/studio/`（一个零依赖的浏览器 DAW，见第 9 节），以及首页那台 80 年代收音机（794 首曲目从私有 KV 流式播放，见第 8 节）。
 
 技术栈：Astro 7（`output: 'static'`）· Cloudflare Pages + Functions + KV · 无前端框架 · 无 SQL · 无 CSS 框架 · Node `>= 22.12`。全站自托管一个按 `unicode-range` 拆分的仿宋（FandolFang）webfont（见第 4 节），字体许可证是 GPL-2.0 加字体嵌入例外。
 
@@ -53,7 +53,7 @@ Novel-blog/
 │   ├── components/RadioPlayer.astro
 │   ├── scripts/discussion-moderation.js
 │   ├── styles/                 # story-font / story-typography / homepage-motion / moderation / studio
-│   ├── utils/                  # sanitize.ts · theme.ts · tesseract.ts · midi.ts · studio/（见第 9 节）
+│   ├── utils/                  # sanitize.ts · theme.ts · tesseract.ts · midi.ts · reading.ts（阅读记录，见第 11 节）· studio/（见第 9 节）
 │   └── pages/…（每个页面的样式写在它自己的 <style> 里）
 ├── tests/                      # functions.security.test.mjs（105）· track.test.mjs（77）
 └── tools/                      # 见第 4、8 节：csp-guard · font_faces · music_manifest · music_kv_put · make-icons
@@ -80,13 +80,13 @@ published: "2026-10-08"
 
 站点正文用仿宋 FandolFang（要的就是那副铅字排出来的样子），许可证是 GPL-2.0 加字体嵌入例外，说明在 `/fonts/FANDOL-LICENCE.txt`，许可证全文 `/fonts/GPL-2.0.txt`。它被拆成同一个家族的三片 `unicode-range`，`public/fonts/` 里现在有三片：
 
-- `fandol-core`（0.50 MB，1,273 个字）：正文会渲染的每一个字形，首次访问下载
-- `fandol-music`（0.41 MB，1,063 个字）：只有节目单的行能碰到的字（曲名、作者、盘架、风格）；不点电台的读者不会下载它，点开的也不用去拉下面那片
-- `fandol-fill`（2.53 MB，5,351 个字）：GB2312 剩下的部分，只有页面遇到前两片画不出来的字时才请求
+- `fandol-core`（0.51 MB，1,295 个字）：正文会渲染的每一个字形，首次访问下载
+- `fandol-music`（0.40 MB，1,053 个字）：只有节目单的行能碰到的字（曲名、作者、盘架、风格）；不点电台的读者不会下载它，点开的也不用去拉下面那片
+- `fandol-fill`（2.53 MB，5,339 个字）：GB2312 剩下的部分，只有页面遇到前两片画不出来的字时才请求
 
 794 条曲名连作者、盘架、风格标签一起摊开是 1,860 个字种，其中 1,026 个正文用不到——把它们并进 core 会让每个只来读小说的人多下载 0.41 MB，所以单开一面。实测现在的正文和节目单都不再触发 fill（只有 8 个 emoji 落到系统表情字体，那是本来就该它们接的）；fill 是将来加新章节时的保底，一旦触发就是 2.53 MB，所以**新字要尽早重跑工具收进 core 或 music**。
 
-仿宋比原来的楷体重：Fandol 一个字形平均约 410 B，core 因此从 0.21 MB 涨到 0.50 MB。`font-display: swap` 保证首屏先用系统的仿宋/宋体画出来，字体到了再换。
+仿宋比原来的楷体重：Fandol 一个字形平均约 410 B，core 因此从 0.21 MB 涨到 0.51 MB。`font-display: swap` 保证首屏先用系统的仿宋/宋体画出来，字体到了再换。
 
 生成顺序是**构建 → 切片 → 再构建**，因为角色集要读 `dist/**.html`（Markdown 会把直引号换成 `“ ”`，只扫源码会漏字）：
 
@@ -230,6 +230,8 @@ B 站缓存目录用 `--bili` 模式：每个 `<avid>/<c_cid>/entry.json` 是一
 - **没有改密 / 找回密码流程**：忘记密码等于账号永久不可用。任何 reset 令牌都是一处新的可被滥用的状态机，暂时不做。
 - 留言数据全公开，所以 `GET /api/discussions` 值得缓存（`max-age=20, stale-while-revalidate=60`，新留言最多晚 20 秒出现）；`POST`、`DELETE` 与 `/api/auth` 一律 `no-store`。
 - 前端只暴露 `{name, verified}`，评论记录只有 `id/name/message/createdAt/verified`。
+- **阅读记录只存在读者自己的设备上**（`src/utils/reading.ts`，localStorage 键 `chandelier-reading`）。服务端没有任何一份，因此不需要新的接口、限流或 CSRF 面；换设备、清浏览器数据、无痕模式，记录就没了，这是拿隐私和无后端换的可见代价。存档按外部输入处理（逐条校验 + 钳制，比例只收有限数、slug 拒绝控制字符和引号），手改过的 JSON 只让单条作废。
+- 记录里存的是**字数比例**，不是进度条显示的那个比例：显示值取 `max(字数比例, 像素比例)`，像素比例里含了页头和标题的空白，比字数比例高一截，把它写回去就变成「每刷新一次往下推一点」的棘轮。恢复位置是同一套记账的反算（`scrollForRatio()`：按字数累加找到目标落在哪一块，再减去半屏），所以存 60% 就落在 60%。`history.scrollRestoration` 设为 `manual`，不让浏览器的像素恢复抢方向盘；读者真的滚动之前不覆盖已有记录，恢复失败最坏是这次不写，而不是把 52% 抹成 0%。
 
 ## 12. 行尾：别按常识推断
 

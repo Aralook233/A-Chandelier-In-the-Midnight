@@ -39,6 +39,7 @@ const currentIndex = chapters.findIndex((chapter) => chapter.id === entry.id);
 const previousChapter = chapters[currentIndex - 1];
 const nextChapter = chapters[currentIndex + 1];
 const { Content } = await render(entry);
+const chapterSlug = entry.id.replace(/\.md$/, '');
 ---
 
 <html lang="zh-CN">
@@ -220,6 +221,55 @@ const { Content } = await render(entry);
 
         .reading-progress-badge {
           transition: none;
+        }
+      }
+      /* 续读提示：页面自己滚到了中段，得说清楚为什么，也得给一条回去的路。
+         固定左下角、十秒后自己退场，不挡住正文也不挡住手指。 */
+      .resume-chip {
+        position: fixed;
+        left: 14px;
+        bottom: 14px;
+        z-index: 52;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        max-width: calc(100vw - 28px);
+        padding: 8px 10px;
+        border: 1px solid var(--line-strong);
+        border-left: 4px solid var(--motion-accent);
+        background: var(--paper-deep);
+        color: var(--ink);
+        font-size: 0.76rem;
+        letter-spacing: 0.06em;
+      }
+      .resume-chip[hidden] {
+        display: none;
+      }
+      .resume-chip span {
+        white-space: nowrap;
+      }
+      .resume-chip button {
+        min-height: 32px;
+        padding: 4px 10px;
+        border: 1px solid var(--line-strong);
+        background: var(--chip-bg);
+        color: var(--ink-soft);
+        font-size: 0.72rem;
+        letter-spacing: 0.06em;
+        cursor: pointer;
+      }
+      .resume-chip button:hover,
+      .resume-chip button:focus-visible {
+        border-color: var(--motion-accent);
+        color: var(--ink);
+      }
+      @media (max-width: 420px) {
+        .resume-chip {
+          flex-wrap: wrap;
+        }
+
+        .resume-chip button {
+          min-height: 44px;
         }
       }
       .layout {
@@ -495,11 +545,17 @@ const { Content } = await render(entry);
       }
     </style>
   </head>
-  <body>
+  <body data-chapter={chapterSlug}>
     <div class="reading-progress" id="readingProgress" role="progressbar" aria-label="本章阅读进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
       <span class="reading-progress-fill" id="readingProgressFill"></span>
     </div>
     <span class="reading-progress-badge" id="readingProgressBadge" aria-hidden="true">已读 0%</span>
+
+    <div class="resume-chip" id="resumeChip" role="status" hidden>
+      <span id="resumeText">已回到上次读到的位置</span>
+      <button id="resumeRestart" type="button">从头读</button>
+      <button id="resumeDismiss" type="button">知道了</button>
+    </div>
 
     <header class="topbar" aria-label="顶部导航">
       <div class="topbar-inner">
@@ -565,6 +621,7 @@ const { Content } = await render(entry);
 
     <script>
       import { initTheme, toggleTheme } from '../../utils/theme';
+      import { JUMP_MIN_RATIO, chapterMark, saveMark } from '../../utils/reading';
 
       initTheme();
       document.getElementById('themeToggle')?.addEventListener('click', () => toggleTheme());
@@ -572,6 +629,9 @@ const { Content } = await render(entry);
       const progressBar = document.getElementById('readingProgress');
       const progressFill = document.getElementById('readingProgressFill');
       const progressBadge = document.getElementById('readingProgressBadge');
+      const resumeChip = document.getElementById('resumeChip');
+      const resumeText = document.getElementById('resumeText');
+      const chapterSlug = document.body?.dataset.chapter ?? '';
 
       if (progressBar && progressFill) {
         const article = document.querySelector('main article');
@@ -599,6 +659,9 @@ const { Content } = await render(entry);
         };
 
         let ticking = false;
+        let interactive = false;
+        let currentRatio = 0;
+        let lastWrite = 0;
 
         const updateProgress = () => {
           ticking = false;
@@ -615,6 +678,10 @@ const { Content } = await render(entry);
           } else {
             ratio = 0;
           }
+          // 记账单位是字数，回滚到的位置也按字数还原。存进记录的是 textRatio 而不是
+          // 下面这个含保底的 ratio：像素比例里混了标题和页头的空白，比字数比例高出一截，
+          // 每刷新一次就往下推一点，来回几趟人就被推到章末了。
+          const textRatio = ratio;
           // 像素滚动只做保底：真滑到页面底就认 100%，但它永远不会把进度拖住，
           // 因为字数比例总是先到位（占位章甚至一打开就满）。
           ratio = Math.max(ratio, pixelRatio());
@@ -631,9 +698,20 @@ const { Content } = await render(entry);
             progressBadge.classList.toggle('is-visible', ratio > 0.01);
             progressBadge.classList.toggle('is-complete', done);
           }
+
+          currentRatio = textRatio;
+          // 写盘是同步的，一秒多顶多一次；离开页面时另有 flush 兜底。
+          const now = Date.now();
+          if (chapterSlug && now - lastWrite > 1200) {
+            lastWrite = now;
+            persist();
+          }
         };
 
         const requestUpdate = () => {
+          // 只有真的动过才算「在读」：刚进页面那一次 updateProgress 是恢复位置用的，
+          // 那时读到的比例不能盖掉上一趟存下来的进度。
+          interactive = true;
           if (ticking) return;
           ticking = true;
           requestAnimationFrame(updateProgress);
@@ -644,15 +722,88 @@ const { Content } = await render(entry);
           updateProgress();
         };
 
+        // 反着算：顺着字数累加找到目标比例落在哪一块，再按块内位置取纵向像素。
+        // 阅读线在视口中线，所以还原时把半屏让回去。
+        const scrollForRatio = (target: number): number => {
+          const total = blocks.reduce((sum, block) => sum + block.chars, 0);
+          if (total <= 0) return 0;
+          const wanted = clamp01(target) * total;
+          let passed = 0;
+          let readLine = 0;
+          for (const block of blocks) {
+            if (passed + block.chars >= wanted) {
+              const inside = block.chars > 0 ? (wanted - passed) / block.chars : 0;
+              readLine = block.top + block.height * inside;
+              break;
+            }
+            passed += block.chars;
+            readLine = block.top + block.height;
+          }
+          return Math.max(0, readLine - document.documentElement.clientHeight * 0.5);
+        };
+
+        const stored = chapterMark(chapterSlug);
+        const resumeRatio = stored && stored.ratio >= JUMP_MIN_RATIO ? stored.ratio : 0;
+        let resumedTo = 0;
+
+        // 有记录的章节，在读者真的滚动之前不许覆盖它：位置恢复失败时最坏也就是
+        // 这次不写，而不是把上次读到的 52% 抹成 0%。
+        const persist = () => {
+          if (!chapterSlug || (!interactive && stored)) return;
+          saveMark(chapterSlug, currentRatio);
+        };
+
+        const flush = () => {
+          persist();
+        };
+
+        try {
+          // 位置由本页按字数恢复，不让浏览器那一套像素恢复来抢方向盘。
+          history.scrollRestoration = 'manual';
+        } catch {
+          // 老浏览器不认这个属性，继续用它自己的恢复也行。
+        }
+
         measure();
+        // 浏览器自己恢复了滚动位置（从后退键进来）就听它的，不再抢一次方向盘。
+        if (resumeRatio > 0 && scrolled() === 0) {
+          resumedTo = scrollForRatio(resumeRatio);
+          if (resumedTo > 2) window.scrollTo(0, resumedTo);
+          else resumedTo = 0;
+        }
         updateProgress();
+
+        if (resumedTo > 0 && resumeChip && resumeText) {
+          resumeText.textContent = `已回到上次读到的 ${Math.round(resumeRatio * 100)}%`;
+          resumeChip.hidden = false;
+          window.setTimeout(() => {
+            resumeChip.hidden = true;
+          }, 10000);
+        }
+
+        document.getElementById('resumeRestart')?.addEventListener('click', () => {
+          window.scrollTo(0, 0);
+          if (resumeChip) resumeChip.hidden = true;
+        });
+        document.getElementById('resumeDismiss')?.addEventListener('click', () => {
+          if (resumeChip) resumeChip.hidden = true;
+        });
 
         window.addEventListener('scroll', requestUpdate, { passive: true });
         window.addEventListener('resize', remeasure);
         window.addEventListener('load', remeasure);
-        document.fonts?.ready.then(remeasure).catch(() => {});
+        window.addEventListener('pagehide', flush);
+        document.fonts?.ready.then(() => {
+          remeasure();
+          // 自定义字体一到，行高会变，刚还原的像素位置就偏了；只校正这一回。
+          if (resumedTo > 0) {
+            const corrected = scrollForRatio(resumeRatio);
+            if (Math.abs(corrected - scrolled()) > 4) window.scrollTo(0, corrected);
+          }
+        }).catch(() => {});
         document.addEventListener('visibilitychange', () => {
-          if (!document.hidden) requestUpdate();
+          if (document.hidden) flush();
+          else requestUpdate();
         });
       }
     </script>
